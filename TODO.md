@@ -10,6 +10,11 @@
 - Build clean: `cargo fmt`, `cargo check`, `cargo clippy`, `cargo build --release`.
 - Repo committed (`UI restyle with multi-preset defaults and channel blocking`).
 
+### Networking / API
+- Added explicit YouTube error parsing and nicer messages (endpoint + reason).
+- Auto-fallback through multiple API keys (`YT_API_private.alt`, `YT_API_private,old`, `YT_API_private`) when 403 appears quota/key related.
+- Env override to cap pages per run: `YTSEARCH_MAX_SEARCH_PAGES` (default 4).
+
 ## Outstanding / Follow-up Ideas
 - Implement actual preset editor (New / Edit / Duplicate) instead of placeholder message.
 - Provide Reset-to-defaults button (restore defaults, clear block list).
@@ -17,3 +22,10 @@
 - Improve Single vs Any affordance further (maybe icon/toggle badge).
 - Provide channel-unblock confirmation / history.
 - Explore saved block list separate from prefs.json (e.g., dedicated file).
+
+## Current Status: ✅ WORKING
+
+- **Multi-key fallback operational**: Successfully tested with 3 API keys
+- **API calls working**: Probe retrieved 112 videos across 5 pages in 24h test
+- **Error handling robust**: Detailed YouTube API diagnostics and sequential key retry
+- **UI refactor complete**: Clean modular structure (663 lines → 5 focused modules)

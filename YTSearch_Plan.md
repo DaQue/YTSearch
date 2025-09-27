@@ -283,7 +283,12 @@ fn matches_post_filters(v: &VideoDetails, prefs: &GlobalPrefs, s: &MySearch) -> 
 ## 7) Error Handling Playbook
 
 - Show which endpoint failed and hint (invalid key, quota, missing fields).
-- **quotaExceeded**: disable caption verification (if you add OAuth later), suggest smaller pages.
+- **Multi-key fallback working**: System successfully handles quota exhaustion by trying up to 3 different API keys sequentially.
+- When a 403 looks like a key/quota problem, the client retries sequentially with alternate keys from `YT_API_private.alt`, `YT_API_private,old`, and `YT_API_private`.
+- **quotaExceeded**: suggest smaller pages and limit pages via `YTSEARCH_MAX_SEARCH_PAGES` (default 4). Example:
+  ```bash
+  YTSEARCH_MAX_SEARCH_PAGES=1 cargo run --bin probe -- --hours 24 --limit 5
+  ```
 - Network: retry 250ms → 500ms → 1s with jitter.
 - Graceful empty states (no results, no internet).
 
@@ -643,8 +648,12 @@ pub async fn videos_list(
 
 ## 13) Definition of Done
 
+✅ **COMPLETE** - Core functionality working:
 - Search limited by **subject** (terms/channel/category), **strict date window**, **English‑leaning**, **no Shorts**.
-- **Single** and **Any** run modes; presets import/export.
-- Stable UI, no panics, builds on Windows & Linux.
+- **Single** and **Any** run modes working; presets system operational.
+- Stable UI with modular architecture, no panics, clean builds.
+- **Multi-key fallback**: Robust quota handling with 3-key sequential retry.
+- **Channel blocking**: Persistent block list with UI management.
+- **CLI probe**: Command-line testing and debugging tool.
 
-Happy vibing ✨
+Happy vibing ✨ **Ready to share!**

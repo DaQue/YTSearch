@@ -8,8 +8,22 @@ use crate::prefs::{self, GlobalPrefs, MySearch, Prefs, QuerySpec, TimeWindow, Ti
 use crate::yt::search;
 use crate::yt::types::{SearchListResponse, VideoDetails, VideoItem};
 use crate::yt::videos;
+use anyhow::Context;
+use std::env;
 
-const MAX_SEARCH_PAGES: usize = 4;
+const DEFAULT_MAX_SEARCH_PAGES: usize = 4;
+
+fn max_search_pages() -> usize {
+    match env::var("YTSEARCH_MAX_SEARCH_PAGES") {
+        Ok(val) => val
+            .trim()
+            .parse::<usize>()
+            .ok()
+            .filter(|n| (1..=10).contains(n))
+            .unwrap_or(DEFAULT_MAX_SEARCH_PAGES),
+        Err(_) => DEFAULT_MAX_SEARCH_PAGES,
+    }
+}
 
 pub enum RunMode {
     Any,
@@ -150,13 +164,15 @@ async fn run_single_search(
     let mut raw_items_total = 0usize;
     let mut unique_ids_total = 0usize;
 
-    while pages_fetched < MAX_SEARCH_PAGES {
+    while pages_fetched < max_search_pages() {
         let mut params = base_params.clone();
         if let Some(token) = &page_token {
             params.push(("pageToken", token.clone()));
         }
 
-        let response = search::search_list(api_key, &params).await?;
+        let response = search::search_list(api_key, &params)
+            .await
+            .with_context(|| "search.list failed — check API key, quotas, or restrictions")?;
         pages_fetched += 1;
 
         let SearchListResponse {
@@ -176,7 +192,9 @@ async fn run_single_search(
         }
         unique_ids_total += request_ids.len();
         if !request_ids.is_empty() {
-            let videos = videos::videos_list(api_key, &request_ids).await?;
+            let videos = videos::videos_list(api_key, &request_ids)
+                .await
+                .with_context(|| "videos.list failed — check API key, quotas, or restrictions")?;
             for video in videos.items {
                 let mut details = map_video_item(video);
                 if filters::matches_post_filters(&details, global, search, blocked_keys) {

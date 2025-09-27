@@ -78,15 +78,19 @@ async fn main() -> anyhow::Result<()> {
     prefs.blocked_channels.sort();
     prefs.blocked_channels.dedup();
     if prefs.api_key.trim().is_empty() {
-        if let Ok(contents) = std::fs::read_to_string("YT_API_private") {
-            let trimmed = contents.trim();
-            if !trimmed.is_empty() {
-                prefs.api_key = trimmed.to_owned();
+        // Try to load from any of the key files
+        for fname in ["YT_API_private", "YT_API_private.alt", "YT_API_private,old"] {
+            if let Ok(contents) = std::fs::read_to_string(fname) {
+                let trimmed = contents.trim();
+                if !trimmed.is_empty() {
+                    prefs.api_key = trimmed.to_owned();
+                    break;
+                }
             }
         }
     }
     if prefs.api_key.trim().is_empty() {
-        anyhow::bail!("API key missing in prefs.json and YT_API_private");
+        anyhow::bail!("API key missing in prefs.json and key files (YT_API_private, YT_API_private.alt, YT_API_private,old)");
     }
     if prefs.searches.is_empty() {
         anyhow::bail!("No presets configured in prefs.json");
