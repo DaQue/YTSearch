@@ -22,16 +22,17 @@ If egui versions mismatch in your toolchain, keep eframe+egui versions **in sync
 
 - Put your Google **API Key** in the app's Settings panel (stored in `prefs.json` under your OS config dir).
 - Open the left panel and create a few **My Searches** presets.
+- Use the built-in preset editor (New / Edit / Duplicate / Import / Export) to tune subject filters without touching JSON.
 - Hit **Search** (currently logs; fill in the HTTP calls in `src/yt/*.rs`).
 
 See `CONTRIBUTING.md` for development details and `CHANGELOG.md` for release notes.
 
 ## Current Status (2025-09-27)
 
-✅ **WORKING** - Multi-key fallback system operational!
-- Successfully tested with 3 API keys and sequential fallback
-- Comprehensive error handling with detailed YouTube API diagnostics
-- CLI probe confirmed: 2 presets, 5 pages, 112 videos retrieved in last 24h test
+🚧 **FUNCTIONAL** - Core search working, UI needs polish
+- Multi-key fallback system operational (3 API keys with sequential retry)
+- CLI probe confirmed: 2 presets, 5 pages, 112 videos retrieved in 24h test
+- Known issues: API key UI missing, preset editor lacks advanced tag widgets
 
 ### Setup / Usage
 

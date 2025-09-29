@@ -76,6 +76,8 @@ impl eframe::App for AppState {
         let search_requested = self.render_top_panel(ctx);
         self.render_left_panel(ctx);
         self.render_central_panel(ctx);
+        self.render_editor_window(ctx);
+        self.render_import_export_windows(ctx);
 
         if search_requested {
             self.launch_search();

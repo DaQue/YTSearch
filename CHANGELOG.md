@@ -43,8 +43,11 @@ YTSEARCH_MAX_SEARCH_PAGES=1 cargo run --bin probe -- --dry-run
 ```
 
 ### 🐛 Known Issues
-- Preset editor UI shows placeholder (CRUD operations planned)
-- No OAuth support yet (captions.list API for precise English detection)
+- **Preset editor**: UI shows "not implemented" placeholder (no New/Edit/Delete operations)
+- **Channel names**: Displays channel IDs (e.g. "UC1234...") instead of readable names (e.g. "Rust", "Colin")
+- **API key management**: No UI to change key in settings (must edit YT_API_private files manually)
+- **UI polish**: Missing thumbnails, limited keyboard shortcuts, basic layout
+- **OAuth**: No captions.list API support yet (precise English caption detection planned)
 
 ### 🙏 Acknowledgments  
 - Built with egui, tokio, reqwest, and serde

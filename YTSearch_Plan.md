@@ -648,12 +648,20 @@ pub async fn videos_list(
 
 ## 13) Definition of Done
 
-✅ **COMPLETE** - Core functionality working:
-- Search limited by **subject** (terms/channel/category), **strict date window**, **English‑leaning**, **no Shorts**.
-- **Single** and **Any** run modes working; presets system operational.
-- Stable UI with modular architecture, no panics, clean builds.
-- **Multi-key fallback**: Robust quota handling with 3-key sequential retry.
-- **Channel blocking**: Persistent block list with UI management.
-- **CLI probe**: Command-line testing and debugging tool.
+🚧 **FUNCTIONAL BUT INCOMPLETE** - Core search working:
 
-Happy vibing ✨ **Ready to share!**
+**✅ Working:**
+- Search with **subject/date/language/duration** filtering
+- **Single** and **Any** run modes operational
+- **Multi-key fallback**: Robust quota handling with 3-key sequential retry
+- **Channel blocking**: Persistent block list with UI management
+- **CLI probe**: Command-line testing and debugging tool
+- Stable build, no panics, clean modular architecture
+
+**🚧 Needs Work:**
+- Preset editor (shows placeholder, no CRUD operations)
+- Channel display (shows IDs like "UC1234..." instead of "Rust" or "Colin")
+- API key management (no UI to change key, must edit files)
+- Polish: thumbnails, better layout, keyboard shortcuts
+
+Happy vibing ✨ **Ready to share as functional prototype!**

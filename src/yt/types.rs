@@ -9,6 +9,8 @@ pub struct VideoDetails {
     pub title_lower: String,
     pub channel_title: String,
     pub channel_handle: String,
+    pub channel_display_name: Option<String>,
+    pub channel_custom_url: Option<String>,
     pub published_at: String,
     pub duration_secs: u64,
     pub default_audio_lang: Option<String>,
@@ -79,4 +81,22 @@ pub struct Thumb {
 #[derive(Deserialize)]
 pub struct ContentDetails {
     pub duration: String,
+}
+
+#[derive(Deserialize)]
+pub struct ChannelsListResponse {
+    pub items: Vec<ChannelItem>,
+}
+
+#[derive(Deserialize)]
+pub struct ChannelItem {
+    pub id: String,
+    pub snippet: ChannelSnippet,
+}
+
+#[derive(Deserialize)]
+pub struct ChannelSnippet {
+    pub title: String,
+    #[serde(rename = "customUrl")]
+    pub custom_url: Option<String>,
 }

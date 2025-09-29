@@ -5,9 +5,11 @@ use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 
 use crate::filters;
 use crate::prefs::{self, GlobalPrefs, MySearch, Prefs, QuerySpec, TimeWindow, TimeWindowPreset};
-use crate::yt::search;
-use crate::yt::types::{SearchListResponse, VideoDetails, VideoItem};
-use crate::yt::videos;
+use crate::yt::{
+    channels, search,
+    types::{SearchListResponse, VideoDetails, VideoItem},
+    videos,
+};
 use anyhow::Context;
 use std::env;
 
@@ -212,6 +214,10 @@ async fn run_single_search(
         }
     }
 
+    if !collected.is_empty() {
+        enhance_channel_metadata(api_key, &mut collected).await;
+    }
+
     Ok(SingleSearchOutcome {
         videos: collected,
         pages_fetched,
@@ -219,6 +225,72 @@ async fn run_single_search(
         raw_items: raw_items_total,
         unique_ids: unique_ids_total,
     })
+}
+
+async fn enhance_channel_metadata(api_key: &str, videos: &mut [VideoDetails]) {
+    let mut ids: Vec<String> = videos
+        .iter()
+        .map(|v| v.channel_handle.clone())
+        .filter(|id| !id.trim().is_empty())
+        .collect();
+    ids.sort();
+    ids.dedup();
+
+    if ids.is_empty() {
+        for video in videos.iter_mut() {
+            if video.channel_display_name.is_none() && !video.channel_title.trim().is_empty() {
+                video.channel_display_name = Some(video.channel_title.clone());
+            }
+        }
+        return;
+    }
+
+    let mut metadata: HashMap<String, (String, Option<String>)> = HashMap::new();
+    for chunk in ids.chunks(50) {
+        match channels::channels_list(api_key, chunk).await {
+            Ok(resp) => {
+                for item in resp.items {
+                    let title = item.snippet.title.trim().to_string();
+                    let custom = item
+                        .snippet
+                        .custom_url
+                        .as_ref()
+                        .map(|url| url.trim())
+                        .filter(|url| !url.is_empty())
+                        .map(|url| {
+                            if url.starts_with('@') {
+                                url.to_string()
+                            } else {
+                                format!("@{}", url.trim_start_matches('@'))
+                            }
+                        });
+                    metadata.insert(item.id, (title, custom));
+                }
+            }
+            Err(err) => {
+                eprintln!("channels.list request failed: {err}");
+            }
+        }
+    }
+
+    for video in videos.iter_mut() {
+        if let Some((title, custom)) = metadata.get(&video.channel_handle) {
+            if !title.trim().is_empty() {
+                video.channel_display_name = Some(title.clone());
+            }
+            if let Some(handle) = custom {
+                video.channel_custom_url = Some(handle.clone());
+            }
+        }
+
+        if video.channel_display_name.is_none() && !video.channel_title.trim().is_empty() {
+            video.channel_display_name = Some(video.channel_title.clone());
+        }
+
+        if video.channel_custom_url.is_none() && video.channel_handle.starts_with('@') {
+            video.channel_custom_url = Some(video.channel_handle.clone());
+        }
+    }
 }
 
 pub fn resolve_window(global: &GlobalPrefs, search: &MySearch) -> TimeWindow {
@@ -300,15 +372,47 @@ fn build_query_text(spec: &QuerySpec) -> String {
         }
     }
 
+    let any_terms: Vec<String> = spec
+        .any_terms
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(format_query_token)
+        .collect();
+    if !any_terms.is_empty() {
+        parts.push(format!("({})", any_terms.join(" OR ")));
+    }
+
     parts.extend(
         spec.all_terms
             .iter()
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_owned()),
+            .map(format_query_token),
     );
 
+    for term in spec.not_terms.iter() {
+        let trimmed = term.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        parts.push(format!("-{}", format_query_token(trimmed)));
+    }
+
     parts.join(" ")
+}
+
+fn format_query_token(term: &str) -> String {
+    if term.is_empty() {
+        return String::new();
+    }
+    let needs_quotes = term.chars().any(|c| c.is_whitespace()) || term.contains('"');
+    if needs_quotes {
+        let escaped = term.replace('"', "\\\"");
+        format!("\"{}\"", escaped)
+    } else {
+        term.to_string()
+    }
 }
 
 fn map_video_item(item: VideoItem) -> VideoDetails {
@@ -327,6 +431,8 @@ fn map_video_item(item: VideoItem) -> VideoDetails {
         title_lower: snippet.title.to_ascii_lowercase(),
         channel_title: snippet.channel_title.clone(),
         channel_handle: snippet.channel_id.clone(),
+        channel_display_name: None,
+        channel_custom_url: None,
         published_at: snippet.published_at.clone(),
         duration_secs: filters::parse_iso8601_duration(&content.duration).unwrap_or(0),
         default_audio_lang: snippet.default_audio_language.clone(),
