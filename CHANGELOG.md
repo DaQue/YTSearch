@@ -2,6 +2,16 @@
 
 All notable changes to YTSearch will be documented in this file.
 
+# [Unreleased]
+
+### ✨ Added
+- Clipboard copy/paste support for individual presets, including dirty-state confirmation before replacing unsaved edits.
+- Import dialog option to replace existing presets or append to the current list, with scrollable JSON editors for large payloads.
+- Scrollable preset editor layout so Save/Cancel controls remain accessible even with extensive configuration.
+
+### 🛠️ Changed
+- Status and button labels now match the preset workflow ("Load presets" / "Save presets").
+
 ## [0.1.0] - 2025-09-27
 
 ### 🎉 Initial Release

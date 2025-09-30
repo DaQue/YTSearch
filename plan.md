@@ -17,11 +17,11 @@
    - Introduce a controller (e.g., `search_runner.rs`) that spawns Tokio tasks from the UI.
    - Orchestrate `search.list` followed by `videos.list`, handle paging/quota budgeting, update app state, and report errors/status back to `AppState` in `src/ui.rs`.
 
-5. **Flesh out egui UX**
-   - Replace the placeholders in the UI with preset management dialogs (new/edit/duplicate/import/export) per `YTSearch_Plan.md`.
-   - Add Any/Single selectors, API-key entry, progress indicators, and a results list showing thumbnails, metadata, and clickable links via the `open` crate.
+5. **Flesh out egui UX** *(in progress)*
+   - Preset management now supports new/edit/duplicate, clipboard copy/paste, and replace/append import flows.
+   - Remaining work: richer tag widgets, thumbnails in results, and smoother keyboard shortcuts.
 
-6. **Polish, document, and validate**
-   - Surface non-blocking errors in the status bar, add integration/unit tests for prefs and filters.
-   - Update `README.md` with setup/run notes and packaging steps.
+6. **Polish, document, and validate** *(next up)*
+   - Land API-key management UI and consider preview thumbnails in the results panel.
+   - Expand docs/screenshots to match the current UX and add smoke tests for import/export paths.
    - Sanity-check builds on targeted platforms.
