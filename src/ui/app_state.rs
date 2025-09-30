@@ -2,6 +2,7 @@ use crate::filters;
 use crate::prefs::{self, MySearch, Prefs};
 use crate::search_runner::{RunMode, SearchOutcome};
 use crate::yt::types::VideoDetails;
+use anyhow::bail;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle;
 
@@ -23,6 +24,7 @@ pub enum PresetEditorMode {
     Duplicate { source_index: usize },
 }
 
+#[derive(Clone)]
 pub struct PresetEditorState {
     pub mode: PresetEditorMode,
     pub working: MySearch,
@@ -50,6 +52,13 @@ pub struct PresetEditorState {
     pub min_duration_override_value: u32,
     pub priority: i32,
     pub error: Option<String>,
+    pub default_english: bool,
+    pub default_captions: bool,
+    pub default_min_duration: u32,
+    pub initial: MySearch,
+    pub awaiting_clipboard: bool,
+    pub pending_clipboard: Option<MySearch>,
+    pub show_dirty_warning: bool,
 }
 
 impl PresetEditorState {
@@ -60,73 +69,45 @@ impl PresetEditorState {
         default_captions: bool,
         default_min_duration: u32,
     ) -> Self {
-        let mut working = source.clone();
-        if !matches!(mode, PresetEditorMode::Edit { .. }) {
-            working.id = String::new();
-            working.enabled = true;
-        }
-
-        let (window_enabled, start, end) = if let Some(window) = &working.window_override {
-            (
-                true,
-                window.start_rfc3339.clone(),
-                window.end_rfc3339.clone(),
-            )
-        } else {
-            (false, String::new(), String::new())
-        };
-
-        let english_enabled = working.english_only_override.is_some();
-        let english_value = working.english_only_override.unwrap_or(default_english);
-        let captions_enabled = working.require_captions_override.is_some();
-        let captions_value = working
-            .require_captions_override
-            .unwrap_or(default_captions);
-        let min_duration_enabled = working.min_duration_override.is_some();
-        let min_duration_value = working
-            .min_duration_override
-            .unwrap_or(default_min_duration);
-
-        let mut any_terms = working.query.any_terms.clone();
-        let mut all_terms = working.query.all_terms.clone();
-        let mut not_terms = working.query.not_terms.clone();
-        let mut channel_allow = working.query.channel_allow.clone();
-        let mut channel_deny = working.query.channel_deny.clone();
-
-        Self::normalize_terms(&mut any_terms);
-        Self::normalize_terms(&mut all_terms);
-        Self::normalize_terms(&mut not_terms);
-        Self::normalize_terms(&mut channel_allow);
-        Self::normalize_terms(&mut channel_deny);
-
-        Self {
+        let mut state = Self {
             mode,
-            enabled: working.enabled,
-            name: working.name.clone(),
-            query_text: working.query.q.clone().unwrap_or_default(),
-            any_terms,
+            working: MySearch::default(),
+            enabled: true,
+            name: String::new(),
+            query_text: String::new(),
+            any_terms: Vec::new(),
             new_any_term: String::new(),
-            all_terms,
+            all_terms: Vec::new(),
             new_all_term: String::new(),
-            not_terms,
+            not_terms: Vec::new(),
             new_not_term: String::new(),
-            channel_allow,
+            channel_allow: Vec::new(),
             new_allow_entry: String::new(),
-            channel_deny,
+            channel_deny: Vec::new(),
             new_deny_entry: String::new(),
-            window_override_enabled: window_enabled,
-            window_start: start,
-            window_end: end,
-            english_override_enabled: english_enabled,
-            english_override_value: english_value,
-            captions_override_enabled: captions_enabled,
-            captions_override_value: captions_value,
-            min_duration_override_enabled: min_duration_enabled,
-            min_duration_override_value: min_duration_value,
-            priority: working.priority,
-            working,
+            window_override_enabled: false,
+            window_start: String::new(),
+            window_end: String::new(),
+            english_override_enabled: false,
+            english_override_value: default_english,
+            captions_override_enabled: false,
+            captions_override_value: default_captions,
+            min_duration_override_enabled: false,
+            min_duration_override_value: default_min_duration,
+            priority: 0,
             error: None,
-        }
+            default_english,
+            default_captions,
+            default_min_duration,
+            initial: MySearch::default(),
+            awaiting_clipboard: false,
+            pending_clipboard: None,
+            show_dirty_warning: false,
+        };
+        state.apply_source(source);
+        state.initial = state.snapshot();
+        state.working = state.initial.clone();
+        state
     }
 
     pub(crate) fn normalize_terms(list: &mut Vec<String>) {
@@ -148,68 +129,210 @@ impl PresetEditorState {
         }
     }
 
-    pub fn hydrate_working(&mut self) {
-        self.working.name = self.name.trim().to_string();
-        self.working.enabled = self.enabled;
-        let query = &mut self.working.query;
-        query.q = if self.query_text.trim().is_empty() {
+    fn normalized_terms_vec(tokens: &[String]) -> Vec<String> {
+        let mut copy = tokens.to_vec();
+        Self::normalize_terms(&mut copy);
+        copy
+    }
+
+    fn apply_terms_to_self(
+        &mut self,
+    ) -> (
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+    ) {
+        let any_terms = Self::normalized_terms_vec(&self.any_terms);
+        let all_terms = Self::normalized_terms_vec(&self.all_terms);
+        let not_terms = Self::normalized_terms_vec(&self.not_terms);
+        let channel_allow = Self::normalized_terms_vec(&self.channel_allow);
+        let channel_deny = Self::normalized_terms_vec(&self.channel_deny);
+
+        self.any_terms = any_terms.clone();
+        self.all_terms = all_terms.clone();
+        self.not_terms = not_terms.clone();
+        self.channel_allow = channel_allow.clone();
+        self.channel_deny = channel_deny.clone();
+
+        (any_terms, all_terms, not_terms, channel_allow, channel_deny)
+    }
+
+    fn populate_target(
+        &self,
+        target: &mut MySearch,
+        any_terms: &[String],
+        all_terms: &[String],
+        not_terms: &[String],
+        channel_allow: &[String],
+        channel_deny: &[String],
+    ) {
+        target.name = self.name.trim().to_string();
+        target.enabled = self.enabled;
+        let trimmed_query = self.query_text.trim();
+        target.query.q = if trimmed_query.is_empty() {
             None
         } else {
-            Some(self.query_text.trim().to_string())
+            Some(trimmed_query.to_string())
         };
-        Self::normalize_terms(&mut self.any_terms);
-        Self::normalize_terms(&mut self.all_terms);
-        Self::normalize_terms(&mut self.not_terms);
-        Self::normalize_terms(&mut self.channel_allow);
-        Self::normalize_terms(&mut self.channel_deny);
-        query.any_terms = self.any_terms.clone();
-        query.all_terms = self.all_terms.clone();
-        query.not_terms = self.not_terms.clone();
-        query.channel_allow = self.channel_allow.clone();
-        query.channel_deny = self.channel_deny.clone();
+        target.query.any_terms = any_terms.to_vec();
+        target.query.all_terms = all_terms.to_vec();
+        target.query.not_terms = not_terms.to_vec();
+        target.query.channel_allow = channel_allow.to_vec();
+        target.query.channel_deny = channel_deny.to_vec();
 
-        if self.window_override_enabled {
-            if self.window_start.trim().is_empty() || self.window_end.trim().is_empty() {
-                self.working.window_override = None;
-            } else {
-                self.working.window_override = Some(crate::prefs::TimeWindow {
-                    start_rfc3339: self.window_start.trim().to_string(),
-                    end_rfc3339: self.window_end.trim().to_string(),
-                });
-            }
+        if self.window_override_enabled
+            && !self.window_start.trim().is_empty()
+            && !self.window_end.trim().is_empty()
+        {
+            target.window_override = Some(crate::prefs::TimeWindow {
+                start_rfc3339: self.window_start.trim().to_string(),
+                end_rfc3339: self.window_end.trim().to_string(),
+            });
         } else {
-            self.working.window_override = None;
+            target.window_override = None;
         }
 
-        self.working.english_only_override = if self.english_override_enabled {
+        target.english_only_override = if self.english_override_enabled {
             Some(self.english_override_value)
         } else {
             None
         };
 
-        self.working.require_captions_override = if self.captions_override_enabled {
+        target.require_captions_override = if self.captions_override_enabled {
             Some(self.captions_override_value)
         } else {
             None
         };
 
-        self.working.min_duration_override = if self.min_duration_override_enabled {
+        target.min_duration_override = if self.min_duration_override_enabled {
             Some(self.min_duration_override_value)
         } else {
             None
         };
 
-        self.working.priority = self.priority;
+        target.priority = self.priority;
     }
+
+    pub fn hydrate_working(&mut self) {
+        let (any_terms, all_terms, not_terms, channel_allow, channel_deny) =
+            self.apply_terms_to_self();
+        let mut target = self.working.clone();
+        self.populate_target(
+            &mut target,
+            &any_terms,
+            &all_terms,
+            &not_terms,
+            &channel_allow,
+            &channel_deny,
+        );
+        self.working = target;
+    }
+
+    pub fn snapshot(&self) -> MySearch {
+        let mut cloned = self.clone();
+        cloned.hydrate_working();
+        cloned.working
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.snapshot() != self.initial
+    }
+
+    pub fn reset_dirty_baseline(&mut self) {
+        self.hydrate_working();
+        self.initial = self.working.clone();
+    }
+
+    pub fn apply_source(&mut self, source: &MySearch) {
+        self.working = source.clone();
+        if !matches!(self.mode, PresetEditorMode::Edit { .. }) {
+            self.working.id = self.working.id.trim().to_string();
+            self.working.enabled = true;
+        }
+
+        let working = &self.working;
+        self.enabled = working.enabled;
+        self.name = working.name.clone();
+        self.query_text = working.query.q.clone().unwrap_or_default();
+
+        self.any_terms = working.query.any_terms.clone();
+        self.new_any_term.clear();
+        self.all_terms = working.query.all_terms.clone();
+        self.new_all_term.clear();
+        self.not_terms = working.query.not_terms.clone();
+        self.new_not_term.clear();
+        self.channel_allow = working.query.channel_allow.clone();
+        self.new_allow_entry.clear();
+        self.channel_deny = working.query.channel_deny.clone();
+        self.new_deny_entry.clear();
+
+        Self::normalize_terms(&mut self.any_terms);
+        Self::normalize_terms(&mut self.all_terms);
+        Self::normalize_terms(&mut self.not_terms);
+        Self::normalize_terms(&mut self.channel_allow);
+        Self::normalize_terms(&mut self.channel_deny);
+
+        if let Some(window) = working.window_override.as_ref() {
+            self.window_override_enabled = true;
+            self.window_start = window.start_rfc3339.clone();
+            self.window_end = window.end_rfc3339.clone();
+        } else {
+            self.window_override_enabled = false;
+            self.window_start.clear();
+            self.window_end.clear();
+        }
+
+        self.english_override_enabled = working.english_only_override.is_some();
+        self.english_override_value = working
+            .english_only_override
+            .unwrap_or(self.default_english);
+
+        self.captions_override_enabled = working.require_captions_override.is_some();
+        self.captions_override_value = working
+            .require_captions_override
+            .unwrap_or(self.default_captions);
+
+        self.min_duration_override_enabled = working.min_duration_override.is_some();
+        self.min_duration_override_value = working
+            .min_duration_override
+            .unwrap_or(self.default_min_duration);
+
+        self.priority = working.priority;
+        self.error = None;
+        self.awaiting_clipboard = false;
+        self.pending_clipboard = None;
+        self.show_dirty_warning = false;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ImportMode {
+    Clipboard,
+    File,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExportMode {
+    Clipboard,
+    File,
 }
 
 pub struct ImportDialogState {
     pub raw_json: String,
+    pub file_path: Option<String>,
+    pub manual_path: String,
+    pub mode: ImportMode,
     pub error: Option<String>,
+    pub replace_existing: bool,
 }
 
 pub struct ExportDialogState {
     pub raw_json: String,
+    pub file_path: Option<String>,
+    pub manual_path: String,
+    pub mode: ExportMode,
 }
 
 pub struct AppState {
@@ -568,7 +691,7 @@ impl AppState {
         self.preset_editor = None;
     }
 
-    fn generate_unique_id(&self, name: &str) -> String {
+    fn sanitize_id_source(name: &str) -> String {
         let mut base: String = name
             .trim()
             .to_ascii_lowercase()
@@ -581,30 +704,87 @@ impl AppState {
         while base.contains("--") {
             base = base.replace("--", "-");
         }
-        base = base.trim_matches('-').to_string();
+        base.trim_matches('-').to_string()
+    }
+
+    fn generate_unique_id_with(&self, name: &str, existing: &[MySearch]) -> String {
+        let mut base = Self::sanitize_id_source(name);
         if base.is_empty() {
             base = format!("preset-{}", OffsetDateTime::now_utc().unix_timestamp());
         }
         let mut candidate = base.clone();
         let mut counter = 2usize;
-        while self.prefs.searches.iter().any(|s| s.id == candidate) {
+        while existing.iter().any(|s| s.id == candidate) {
             candidate = format!("{}-{}", base, counter);
             counter += 1;
         }
         candidate
     }
 
+    fn generate_unique_id(&self, name: &str) -> String {
+        self.generate_unique_id_with(name, &self.prefs.searches)
+    }
+
+    pub(crate) fn parse_clipboard_preset(&self, raw: &str) -> anyhow::Result<MySearch> {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            bail!("Clipboard is empty.");
+        }
+
+        if let Ok(preset) = serde_json::from_str::<MySearch>(trimmed) {
+            return Ok(preset);
+        }
+
+        if let Ok(presets) = serde_json::from_str::<Vec<MySearch>>(trimmed) {
+            if let Some(first) = presets.into_iter().next() {
+                return Ok(first);
+            }
+        }
+
+        if let Ok(payload) = serde_json::from_str::<Prefs>(trimmed) {
+            if let Some(first) = payload.searches.into_iter().next() {
+                return Ok(first);
+            }
+        }
+
+        bail!("Clipboard JSON did not contain a preset.");
+    }
+
+    pub(crate) fn apply_clipboard_preset(&mut self, mut preset: MySearch) {
+        if let Some(editor) = self.preset_editor.as_mut() {
+            match editor.mode {
+                PresetEditorMode::Edit { .. } => {
+                    preset.id = editor.working.id.clone();
+                }
+                PresetEditorMode::Duplicate { .. } | PresetEditorMode::New => {
+                    preset.id.clear();
+                    preset.enabled = true;
+                }
+            }
+            editor.apply_source(&preset);
+        }
+    }
+
     pub fn open_import_dialog(&mut self) {
         self.import_dialog = Some(ImportDialogState {
             raw_json: String::new(),
+            file_path: None,
+            manual_path: String::new(),
+            mode: ImportMode::Clipboard,
             error: None,
+            replace_existing: false,
         });
     }
 
     pub fn open_export_dialog(&mut self) {
         match serde_json::to_string_pretty(&self.prefs.searches) {
             Ok(raw_json) => {
-                self.export_dialog = Some(ExportDialogState { raw_json });
+                self.export_dialog = Some(ExportDialogState {
+                    raw_json,
+                    file_path: None,
+                    manual_path: String::new(),
+                    mode: ExportMode::Clipboard,
+                });
             }
             Err(err) => {
                 self.status = format!("Export failed: {err}");
@@ -618,6 +798,62 @@ impl AppState {
 
     pub fn cancel_export_dialog(&mut self) {
         self.export_dialog = None;
+    }
+
+    pub fn import_from_file(&mut self) {
+        match native_dialog::FileDialog::new()
+            .add_filter("JSON files", &["json"])
+            .add_filter("All files", &["*"])
+            .show_open_single_file()
+        {
+            Ok(Some(path)) => match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    self.import_dialog = Some(ImportDialogState {
+                        raw_json: content,
+                        file_path: Some(path.to_string_lossy().to_string()),
+                        manual_path: path.to_string_lossy().to_string(),
+                        mode: ImportMode::File,
+                        error: None,
+                        replace_existing: true,
+                    });
+                }
+                Err(err) => {
+                    self.status = format!("Failed to read file: {err}");
+                }
+            },
+            Ok(None) => {
+                // User cancelled - do nothing
+            }
+            Err(err) => {
+                self.status = format!("Failed to open file dialog: {err}");
+            }
+        }
+    }
+
+    pub fn export_to_file(&mut self) {
+        if let Some(dialog) = self.export_dialog.as_ref() {
+            match native_dialog::FileDialog::new()
+                .add_filter("JSON files", &["json"])
+                .set_filename("yts_search_presets.json")
+                .show_save_single_file()
+            {
+                Ok(Some(path)) => match std::fs::write(&path, &dialog.raw_json) {
+                    Ok(_) => {
+                        self.status = format!("Presets saved to: {}", path.display());
+                        self.cancel_export_dialog();
+                    }
+                    Err(err) => {
+                        self.status = format!("Failed to save file: {err}");
+                    }
+                },
+                Ok(None) => {
+                    // User cancelled - do nothing
+                }
+                Err(err) => {
+                    self.status = format!("Failed to open save dialog: {err}");
+                }
+            }
+        }
     }
 
     pub fn apply_import(&mut self) {
@@ -650,22 +886,46 @@ impl AppState {
         }
 
         let mut added = 0usize;
-        for mut preset in presets {
-            if preset.name.is_empty() {
-                continue;
+        if dialog.replace_existing {
+            let mut new_list: Vec<MySearch> = Vec::new();
+            for mut preset in presets {
+                if preset.name.is_empty() {
+                    continue;
+                }
+                let trimmed_id = preset.id.trim();
+                if trimmed_id.is_empty() || new_list.iter().any(|s| s.id == trimmed_id) {
+                    preset.id = self.generate_unique_id_with(&preset.name, &new_list);
+                } else {
+                    preset.id = trimmed_id.to_string();
+                }
+                new_list.push(preset);
             }
-            if preset.id.trim().is_empty() || self.prefs.searches.iter().any(|s| s.id == preset.id)
-            {
-                preset.id = self.generate_unique_id(&preset.name);
+            if new_list.is_empty() {
+                dialog.error = Some("No valid presets to import.".into());
+                self.import_dialog = Some(dialog);
+                return;
             }
-            self.prefs.searches.push(preset);
-            added += 1;
-        }
+            added = new_list.len();
+            self.prefs.searches = new_list;
+        } else {
+            for mut preset in presets {
+                if preset.name.is_empty() {
+                    continue;
+                }
+                if preset.id.trim().is_empty()
+                    || self.prefs.searches.iter().any(|s| s.id == preset.id)
+                {
+                    preset.id = self.generate_unique_id(&preset.name);
+                }
+                self.prefs.searches.push(preset);
+                added += 1;
+            }
 
-        if added == 0 {
-            dialog.error = Some("No valid presets to import.".into());
-            self.import_dialog = Some(dialog);
-            return;
+            if added == 0 {
+                dialog.error = Some("No valid presets to import.".into());
+                self.import_dialog = Some(dialog);
+                return;
+            }
         }
 
         if let Err(err) = prefs::save(&self.prefs) {
@@ -675,6 +935,10 @@ impl AppState {
         }
 
         self.status = format!("Imported {added} preset(s).");
-        self.selected_search_id = self.prefs.searches.last().map(|s| s.id.clone());
+        if dialog.replace_existing {
+            self.selected_search_id = self.prefs.searches.first().map(|s| s.id.clone());
+        } else {
+            self.selected_search_id = self.prefs.searches.last().map(|s| s.id.clone());
+        }
     }
 }

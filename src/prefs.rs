@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, fs, mem, path::PathBuf};
 
 const DEFAULT_PREFS_JSON: &str = include_str!("prefs_defaults.json");
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(default)]
 pub struct Prefs {
     pub api_key: String,
@@ -13,7 +13,7 @@ pub struct Prefs {
     pub blocked_channels: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct GlobalPrefs {
     pub default_window: TimeWindowPreset,
@@ -24,7 +24,7 @@ pub struct GlobalPrefs {
     pub region_code: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(default)]
 pub struct MySearch {
     pub id: String,
@@ -38,7 +38,7 @@ pub struct MySearch {
     pub priority: i32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(default)]
 pub struct QuerySpec {
     pub q: Option<String>,
@@ -59,7 +59,7 @@ pub enum TimeWindowPreset {
     Custom,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct TimeWindow {
     pub start_rfc3339: String,
     pub end_rfc3339: String,
