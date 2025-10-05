@@ -8,6 +8,7 @@ A tiny desktop tool (Rust + egui) to search YouTube with **strict filters**:
 - Saved **My Searches** presets with Single / Any run modes
 - Cached results reopen instantly without spending quota
 - Result sorting (Newest, Oldest, Shortest, Longest, Channel)
+- In-app Help dialog (top-right) summarises version info and API key setup steps
 
 ✅ **Fully functional** YouTube search tool with robust API handling and modern UI.
 

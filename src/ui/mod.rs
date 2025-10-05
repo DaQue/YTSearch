@@ -96,6 +96,7 @@ impl eframe::App for AppState {
         self.render_central_panel(ctx);
         self.render_editor_window(ctx);
         self.render_import_export_windows(ctx);
+        self.render_help_window(ctx);
 
         if search_requested {
             self.launch_search();

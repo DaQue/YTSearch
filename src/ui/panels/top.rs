@@ -27,6 +27,10 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) -> bool {
                             ui.add_space(12.0);
                             ui.colored_label(STATUS_ACCENT, RichText::new(&state.status).strong());
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if ui.button("Help").clicked() {
+                                    state.show_help_dialog = true;
+                                }
+                                ui.add_space(6.0);
                                 let search_button = egui::Button::new(
                                     RichText::new("Search").strong().color(Color32::WHITE),
                                 )

@@ -10,6 +10,7 @@ All notable changes to YTSearch will be documented in this file.
 - Scrollable preset editor layout so Save/Cancel controls remain accessible even with extensive configuration.
 - Cached search results persist between launches and reload automatically without hitting the API.
 - Result sorting controls (Newest, Oldest, Shortest, Longest, Channel) in the results header.
+- Added an in-app Help dialog with version info and API key setup guidance.
 
 ### 🛠️ Changed
 - Status and button labels now match the preset workflow ("Load presets" / "Save presets").

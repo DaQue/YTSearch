@@ -11,6 +11,8 @@ use std::path::Path;
 use std::sync::mpsc;
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
+use egui::Context;
+
 use super::duration_filters::{DurationFilterState, channel_sort_key};
 use super::preset_editor::{PresetEditorMode, PresetEditorState};
 
@@ -56,6 +58,7 @@ pub struct AppState {
     pub import_dialog: Option<dialogs::ImportDialogState>,
     pub export_dialog: Option<dialogs::ExportDialogState>,
     pub cached_banner_until: Option<OffsetDateTime>,
+    pub show_help_dialog: bool,
 }
 
 mod dialogs;
@@ -139,6 +142,7 @@ impl AppState {
             import_dialog: None,
             export_dialog: None,
             cached_banner_until,
+            show_help_dialog: false,
         };
         state.apply_result_sort();
         state
@@ -333,6 +337,40 @@ impl AppState {
             } else {
                 self.status = format!("Unblocked channel: {}", channel_key);
             }
+        }
+    }
+
+    pub fn render_help_window(&mut self, ctx: &Context) {
+        if !self.show_help_dialog {
+            return;
+        }
+
+        let mut open = true;
+        egui::Window::new("About & Help")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .min_width(360.0)
+            .show(ctx, |ui| {
+                ui.heading(format!("YTSearch v{}", env!("CARGO_PKG_VERSION")));
+                ui.label("A desktop helper for triaging YouTube results quickly.");
+
+                ui.separator();
+                ui.label("API key setup:");
+                ui.small("1. Create a YouTube Data API v3 key in Google Cloud (enable the API)." );
+                ui.small("2. Paste the key into the Settings panel (left sidebar → My Searches)." );
+                ui.small("   The key is saved to prefs.json inside your YTSearch config directory.");
+                ui.small("3. Press Search to fetch videos. Cached results reload automatically on startup.");
+
+                ui.separator();
+                ui.label("Documentation:");
+                ui.small("• README.md → “Where to start” covers full setup details.");
+                ui.small("• prefs.json lives under ~/.config/YTSearch/ (or platform equivalent).");
+                ui.small("• Search results respect filters, language, and duration buckets you pick up top.");
+            });
+
+        if !open {
+            self.show_help_dialog = false;
         }
     }
 }
