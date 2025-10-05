@@ -1,0 +1,77 @@
+[
+  {
+    "id": "rust-programming",
+    "name": "Rust Programming",
+    "enabled": true,
+    "query": {
+      "q": "rust programming",
+      "any_terms": [
+        "async rust",
+        "tokio",
+        "rust tutorial",
+        "egui",
+        "rust news"
+      ],
+      "all_terms": [],
+      "not_terms": [
+        "shorts",
+        "#shorts"
+      ],
+      "channel_allow": [],
+      "channel_deny": [],
+      "category_id": null
+    },
+    "window_override": null,
+    "english_only_override": null,
+    "require_captions_override": null,
+    "min_duration_override": null,
+    "priority": 0
+  },
+  {
+    "id": "sovereign-watch",
+    "name": "Sovereign Citizen Watch",
+    "enabled": true,
+    "query": {
+      "q": "sovereign citizen",
+      "any_terms": [
+        "court",
+        "traffic stop",
+        "audit",
+        "police",
+        "fails"
+      ],
+      "all_terms": [],
+      "not_terms": [
+        "shorts",
+        "#shorts"
+      ],
+      "channel_allow": [],
+      "channel_deny": [],
+      "category_id": null
+    },
+    "window_override": null,
+    "english_only_override": null,
+    "require_captions_override": null,
+    "min_duration_override": null,
+    "priority": 0
+  },
+  {
+    "id": "phython",
+    "name": "Phython",
+    "enabled": true,
+    "query": {
+      "q": "python",
+      "any_terms": [],
+      "all_terms": [],
+      "not_terms": [],
+      "channel_allow": [],
+      "channel_deny": [],
+      "category_id": null
+    },
+    "window_override": null,
+    "english_only_override": null,
+    "require_captions_override": null,
+    "min_duration_override": null,
+    "priority": 2
+  }
+]

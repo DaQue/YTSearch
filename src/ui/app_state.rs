@@ -6,6 +6,7 @@ use crate::yt::types::VideoDetails;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle;
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::sync::mpsc;
@@ -15,6 +16,7 @@ use egui::Context;
 
 use super::duration_filters::{DurationFilterState, channel_sort_key};
 use super::preset_editor::{PresetEditorMode, PresetEditorState};
+use super::thumbnails::{self, ThumbnailRef};
 
 pub enum SearchResult {
     Success(SearchOutcome),
@@ -47,6 +49,7 @@ pub struct AppState {
     pub status: String,
     pub run_any_mode: bool,
     pub results: Vec<VideoDetails>,
+    pub results_all: Vec<VideoDetails>,
     pub result_sort: ResultSort,
     pub duration_filter: DurationFilterState,
     pub runtime: Runtime,
@@ -59,6 +62,7 @@ pub struct AppState {
     pub export_dialog: Option<dialogs::ExportDialogState>,
     pub cached_banner_until: Option<OffsetDateTime>,
     pub show_help_dialog: bool,
+    pub thumbnail_cache: thumbnails::ThumbnailCache,
 }
 
 mod dialogs;
@@ -99,7 +103,7 @@ impl AppState {
             .expect("failed to start tokio runtime");
         let selected_search_id = prefs.searches.first().map(|s| s.id.clone());
         let duration_filter = DurationFilterState::from_global(&prefs.global);
-        let mut results: Vec<VideoDetails> = Vec::new();
+        let mut initial_results_all: Vec<VideoDetails> = Vec::new();
         let mut cached_banner_until: Option<OffsetDateTime> = None;
 
         if let Some(mut cached) = cache::load_cached_results() {
@@ -123,14 +127,15 @@ impl AppState {
                 )
             };
             cached_banner_until = Some(OffsetDateTime::now_utc() + Duration::seconds(5));
-            results = cached.videos;
+            initial_results_all = cached.videos;
         }
 
         let mut state = Self {
             prefs,
             status,
             run_any_mode: true,
-            results,
+            results: Vec::new(),
+            results_all: initial_results_all,
             result_sort: ResultSort::Newest,
             duration_filter,
             runtime,
@@ -143,8 +148,14 @@ impl AppState {
             export_dialog: None,
             cached_banner_until,
             show_help_dialog: false,
+            thumbnail_cache: thumbnails::ThumbnailCache::new(),
         };
-        state.apply_result_sort();
+        if !state.results_all.is_empty() {
+            state.refresh_visible_results();
+        } else {
+            state.apply_result_sort();
+        }
+        state.sync_thumbnail_cache();
         state
     }
 
@@ -191,11 +202,91 @@ impl AppState {
         }
     }
 
+    pub(super) fn sync_thumbnail_cache(&mut self) {
+        let ids = self.results_all.iter().map(|video| video.id.as_str());
+        self.thumbnail_cache.retain_ids(ids);
+    }
+
+    pub fn thumbnail_for_video(
+        &mut self,
+        ctx: &Context,
+        video: &VideoDetails,
+    ) -> Option<ThumbnailRef> {
+        self.thumbnail_cache.request(
+            &video.id,
+            video.thumbnail_url.as_deref(),
+            ctx,
+            &self.runtime,
+        );
+        self.thumbnail_cache.thumbnail(&video.id)
+    }
+
     pub(crate) fn normalize_duration_selection(&mut self) {
         self.sync_duration_filter_to_prefs();
         prefs::normalize_duration_filters(&mut self.prefs.global);
         self.duration_filter
             .sync_from_ids(&self.prefs.global.active_duration_bucket_ids);
+    }
+
+    pub fn refresh_visible_results(&mut self) {
+        let mut filtered: Vec<VideoDetails> = Vec::new();
+        if self.run_any_mode {
+            let enabled_names: HashSet<&str> = self
+                .prefs
+                .searches
+                .iter()
+                .filter(|preset| preset.enabled)
+                .map(|preset| preset.name.as_str())
+                .collect();
+            if enabled_names.is_empty() {
+                self.results.clear();
+                return;
+            }
+            for video in &self.results_all {
+                if video
+                    .source_presets
+                    .iter()
+                    .any(|name| enabled_names.contains(name.as_str()))
+                {
+                    filtered.push(video.clone());
+                }
+            }
+        } else {
+            let selected_id = self
+                .selected_search_id
+                .clone()
+                .or_else(|| self.prefs.searches.first().map(|s| s.id.clone()));
+            let Some(selected_id) = selected_id else {
+                self.results.clear();
+                return;
+            };
+
+            let selected_name = self
+                .prefs
+                .searches
+                .iter()
+                .find(|preset| preset.id == selected_id)
+                .map(|preset| preset.name.clone());
+            self.selected_search_id = Some(selected_id);
+
+            if let Some(selected_name) = selected_name {
+                for video in &self.results_all {
+                    if video
+                        .source_presets
+                        .iter()
+                        .any(|name| name == &selected_name)
+                    {
+                        filtered.push(video.clone());
+                    }
+                }
+            } else {
+                self.results.clear();
+                return;
+            }
+        }
+
+        self.results = filtered;
+        self.apply_result_sort();
     }
 
     pub fn persist_cached_results(&self) {
@@ -204,7 +295,7 @@ impl AppState {
         let payload = CachedResults {
             generated_at,
             status_line: self.status.clone(),
-            videos: self.results.clone(),
+            videos: self.results_all.clone(),
             saved_at_unix: now.unix_timestamp(),
         };
         if let Err(err) = cache::save_cached_results(&payload) {

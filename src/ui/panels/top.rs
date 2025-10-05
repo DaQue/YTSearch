@@ -43,6 +43,7 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) -> bool {
                         });
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
+                            let old_run_any_mode = state.run_any_mode;
                             if tinted_toggle_button(ui, state.run_any_mode, "Any", ACCENT_ANY) {
                                 state.run_any_mode = true;
                             }
@@ -54,6 +55,9 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) -> bool {
                                 ACCENT_SINGLE,
                             ) {
                                 state.run_any_mode = false;
+                            }
+                            if old_run_any_mode != state.run_any_mode {
+                                state.refresh_visible_results();
                             }
                             if !state.run_any_mode {
                                 if let Some(name) = state.selected_search_name() {
@@ -87,11 +91,19 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) -> bool {
                                     );
                                 });
                             ui.add_space(12.0);
+                            let old_english_only = state.prefs.global.english_only;
                             ui.checkbox(&mut state.prefs.global.english_only, "English only");
+                            if old_english_only != state.prefs.global.english_only {
+                                state.refresh_visible_results();
+                            }
+                            let old_require_captions = state.prefs.global.require_captions;
                             ui.checkbox(
                                 &mut state.prefs.global.require_captions,
                                 "Require captions",
                             );
+                            if old_require_captions != state.prefs.global.require_captions {
+                                state.refresh_visible_results();
+                            }
                             ui.label("Min duration (s):");
                             ui.add(
                                 egui::DragValue::new(&mut state.prefs.global.min_duration_secs)
@@ -123,6 +135,7 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) -> bool {
                                         && state.duration_filter.toggle(&id)
                                     {
                                         state.normalize_duration_selection();
+                                        state.refresh_visible_results();
                                     }
                                     ui.add_space(4.0);
                                 }

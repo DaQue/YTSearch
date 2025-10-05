@@ -3,6 +3,7 @@ mod duration_filters;
 mod panels;
 mod preset_editor;
 mod theme;
+mod thumbnails;
 mod utils;
 
 pub use app_state::AppState;
@@ -42,7 +43,7 @@ impl eframe::App for AppState {
                     let unique = outcome.unique_ids;
                     let passed = outcome.passed_filters;
                     let blocked_keys = prefs::blocked_keys(&self.prefs.blocked_channels);
-                    self.results = outcome
+                    self.results_all = outcome
                         .videos
                         .into_iter()
                         .filter(|v| {
@@ -53,13 +54,14 @@ impl eframe::App for AppState {
                             )
                         })
                         .collect();
+                    self.sync_thumbnail_cache();
+                    self.refresh_visible_results();
                     let kept = self.results.len();
                     self.status = format!(
                         "Ran {presets} preset(s) across {pages} page(s); raw {raw}, unique {unique}, passed {passed}, kept {kept} (skipped {skipped_duplicates} duplicates)."
                     );
                     self.is_searching = false;
                     self.cached_banner_until = None;
-                    self.apply_result_sort();
                     self.persist_cached_results();
                 }
                 SearchResult::Error(err) => {
@@ -80,6 +82,8 @@ impl eframe::App for AppState {
                 }
             }
         }
+
+        self.thumbnail_cache.update(ctx);
 
         // Validate selected search
         if let Some(selected) = self.selected_search_id.clone() {

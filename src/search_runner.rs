@@ -13,7 +13,7 @@ use crate::yt::{
 use anyhow::Context;
 use std::env;
 
-const DEFAULT_MAX_SEARCH_PAGES: usize = 4;
+const DEFAULT_MAX_SEARCH_PAGES: usize = 2;
 
 fn max_search_pages() -> usize {
     match env::var("YTSEARCH_MAX_SEARCH_PAGES") {
@@ -159,7 +159,7 @@ async fn run_single_search(
         base_params.push(("publishedBefore", window.end_rfc3339.clone()));
     }
     base_params.push(("order", "date".to_owned()));
-    base_params.push(("maxResults", "25".to_owned()));
+    base_params.push(("maxResults", "50".to_owned()));
 
     let mut page_token: Option<String> = None;
     let mut pages_fetched = 0usize;

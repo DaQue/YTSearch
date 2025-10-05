@@ -285,7 +285,7 @@ fn matches_post_filters(v: &VideoDetails, prefs: &GlobalPrefs, s: &MySearch) -> 
 - Show which endpoint failed and hint (invalid key, quota, missing fields).
 - **Multi-key fallback working**: System successfully handles quota exhaustion by trying up to 3 different API keys sequentially.
 - When a 403 looks like a key/quota problem, the client retries sequentially with alternate keys from `YT_API_private.alt`, `YT_API_private,old`, and `YT_API_private`.
-- **quotaExceeded**: suggest smaller pages and limit pages via `YTSEARCH_MAX_SEARCH_PAGES` (default 4). Example:
+- **quotaExceeded**: suggest smaller pages and limit pages via `YTSEARCH_MAX_SEARCH_PAGES` (default 2). Example:
   ```bash
   YTSEARCH_MAX_SEARCH_PAGES=1 cargo run --bin probe -- --hours 24 --limit 5
   ```

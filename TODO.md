@@ -14,16 +14,14 @@
 ### Networking / API
 - Added explicit YouTube error parsing and nicer messages (endpoint + reason).
 - Auto-fallback through multiple API keys (`YT_API_private.alt`, `YT_API_private,old`, `YT_API_private`) when 403 appears quota/key related.
-- Env override to cap pages per run: `YTSEARCH_MAX_SEARCH_PAGES` (default 4).
+- Env override to cap pages per run: `YTSEARCH_MAX_SEARCH_PAGES` (default 2).
 
 ## Outstanding / Follow-up Ideas
 - Provide Reset-to-defaults button (restore defaults, clear block list).
-- Consider optional higher `maxResults` (25 → 50) and/or bump `MAX_SEARCH_PAGES` strategy to reduce API calls.
 - Improve Single vs Any affordance further (maybe icon/toggle badge).
 - Provide channel-unblock confirmation / history.
 - Explore saved block list separate from prefs.json (e.g., dedicated file).
 - Make duration buckets (labels + ranges) editable from UI.
-- Add optional video thumbnails to result cards.
 
 ## Current Status: 🚧 FUNCTIONAL BUT INCOMPLETE
 
@@ -35,5 +33,5 @@
 
 ### 🚧 Known Issues
 - **API key UI**: No way to change key in settings panel (must edit files)
-- **Missing features**: No thumbnails, limited keyboard shortcuts
+- **Missing features**: Limited keyboard shortcuts, further preset editor polish needed
 - **Preset editor polish**: Add drag-and-drop reordering and richer validation messaging for term chips

@@ -11,11 +11,25 @@ All notable changes to YTSearch will be documented in this file.
 - Cached search results persist between launches and reload automatically without hitting the API.
 - Result sorting controls (Newest, Oldest, Shortest, Longest, Channel) in the results header.
 - Added an in-app Help dialog with version info and API key setup guidance.
+- **Real-time UI updates**: Search results now refresh automatically when toggles or selections change in left/top panels.
 
 ### 🛠️ Changed
 - Status and button labels now match the preset workflow ("Load presets" / "Save presets").
 - Duration bucket chips now allow multi-select and automatically fall back to "Any length" when cleared.
 - Cached banner copy shortened and set to auto-hide after 5 seconds so the search button remains visible at narrow widths.
+- **Responsive layout**: Fixed "Open" button disappearing when window width is reduced - button now has guaranteed space allocation.
+- Default YouTube fetch now requests 50 results per page and caps out after 2 pages, keeping 100-video coverage while cutting quota usage.
+
+### 🔧 Technical Improvements
+- Added `refresh_visible_results()` calls throughout UI panels when:
+  - Preset enabled/disabled state changes
+  - Preset selection changes (Single mode)
+  - Run mode toggle changes (Any vs Single)
+  - Filter checkboxes change (English only, Require captions)
+  - Duration filter toggles change
+  - Presets are added, updated, or deleted
+- Improved video card layout with proper space allocation for action buttons
+- Enhanced UI responsiveness and eliminated stale data display issues
 
 ## [0.1.0] - 2025-09-27
 

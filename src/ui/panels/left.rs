@@ -63,12 +63,17 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                             scroll_ui.label("Presets (enable/disable):");
 
                             let len = state.prefs.searches.len();
+                            let mut any_enabled_changed = false;
                             for index in 0..len {
                                 if let Some(search) = state.prefs.searches.get_mut(index) {
                                     let mut select_id: Option<String> = None;
                                     let mut row_action: Option<PresetAction> = None;
                                     scroll_ui.horizontal(|ui| {
+                                        let old_enabled = search.enabled;
                                         ui.checkbox(&mut search.enabled, "");
+                                        if old_enabled != search.enabled {
+                                            any_enabled_changed = true;
+                                        }
                                         let selected = state
                                             .selected_search_id
                                             .as_deref()
@@ -94,6 +99,7 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                     });
                                     if let Some(id) = select_id {
                                         state.selected_search_id = Some(id);
+                                        state.refresh_visible_results();
                                     }
                                     if pending_action.is_none() {
                                         if let Some(action) = row_action {
@@ -101,6 +107,9 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                         }
                                     }
                                 }
+                            }
+                            if any_enabled_changed {
+                                state.refresh_visible_results();
                             }
 
                             scroll_ui.add_space(8.0);

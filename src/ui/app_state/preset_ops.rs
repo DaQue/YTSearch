@@ -76,6 +76,7 @@ impl AppState {
                     self.prefs.searches.last().map(|s| s.id.clone())
                 };
                 self.selected_search_id = next_id;
+                self.refresh_visible_results();
             }
         }
     }
@@ -171,6 +172,7 @@ impl AppState {
             self.status = format!("Failed to save prefs: {err}");
         } else {
             self.status = "Preset saved.".into();
+            self.refresh_visible_results();
         }
 
         self.preset_editor = None;
