@@ -1,5 +1,5 @@
 use super::types::ChannelsListResponse;
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use serde::Deserialize;
 use std::fs;
 

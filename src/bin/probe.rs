@@ -89,7 +89,9 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     if prefs.api_key.trim().is_empty() {
-        anyhow::bail!("API key missing in prefs.json and key files (YT_API_private, YT_API_private.alt, YT_API_private,old)");
+        anyhow::bail!(
+            "API key missing in prefs.json and key files (YT_API_private, YT_API_private.alt, YT_API_private,old)"
+        );
     }
     if prefs.searches.is_empty() {
         anyhow::bail!("No presets configured in prefs.json");

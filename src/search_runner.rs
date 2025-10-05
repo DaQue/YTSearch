@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{bail, Result};
-use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
+use anyhow::{Result, bail};
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::filters;
 use crate::prefs::{self, GlobalPrefs, MySearch, Prefs, QuerySpec, TimeWindow, TimeWindowPreset};

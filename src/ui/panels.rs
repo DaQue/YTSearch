@@ -6,6 +6,7 @@ use egui::{
 };
 
 use super::app_state::{AppState, ResultSort};
+use crate::ui::preset_editor::{PresetEditorMode, PresetEditorState};
 use super::theme::*;
 use super::utils::{format_duration, open_in_browser, time_window_label};
 
@@ -362,9 +363,9 @@ impl AppState {
             }
 
             let title = match editor.mode {
-                super::app_state::PresetEditorMode::New => "New preset",
-                super::app_state::PresetEditorMode::Edit { .. } => "Edit preset",
-                super::app_state::PresetEditorMode::Duplicate { .. } => "Duplicate preset",
+                PresetEditorMode::New => "New preset",
+                PresetEditorMode::Edit { .. } => "Edit preset",
+                PresetEditorMode::Duplicate { .. } => "Duplicate preset",
             };
 
             let mut open = true;
@@ -923,7 +924,7 @@ fn render_token_editor(
                 tokens.remove(idx);
             }
         });
-        crate::ui::app_state::PresetEditorState::normalize_terms(tokens);
+        PresetEditorState::normalize_terms(tokens);
     }
 
     ui.horizontal(|ui| {
@@ -941,7 +942,7 @@ fn render_token_editor(
                     .any(|existing| existing.eq_ignore_ascii_case(value))
             {
                 tokens.push(value.to_string());
-                crate::ui::app_state::PresetEditorState::normalize_terms(tokens);
+                PresetEditorState::normalize_terms(tokens);
             }
             new_token.clear();
         }
