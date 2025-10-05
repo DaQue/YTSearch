@@ -24,6 +24,7 @@ YT_API_private,old
 
 # User config
 ~/.config/YTSearch/
+last_results.json
 
 # Build artifacts
 *.exe
@@ -35,3 +36,6 @@ YT_API_private,old
 
 # Screenshots/images (keep state*.png as examples)
 # state*.png are project documentation
+# Local overrides
+GRAND_UNIFIED.local.md
+*.local.md

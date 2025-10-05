@@ -1,7 +1,7 @@
 use clap::Parser;
 use time::{Duration, OffsetDateTime};
 
-use YTSearch::prefs::{self, Prefs, TimeWindow, TimeWindowPreset};
+use YTSearch::prefs::{self, Prefs, TimeWindow};
 use YTSearch::search_runner::{self, RunMode};
 
 #[derive(Parser, Debug)]
@@ -59,7 +59,6 @@ fn override_window(prefs: &mut Prefs, hours: Option<i64>) {
         for search in &mut prefs.searches {
             search.window_override = Some(window.clone());
         }
-        prefs.global.default_window = TimeWindowPreset::Custom;
     }
 }
 
@@ -131,9 +130,10 @@ async fn main() -> anyhow::Result<()> {
         for search in &prefs.searches {
             let pref_global = &prefs.global;
             let mut params = search_runner::build_query_params(pref_global, search)?;
-            let window = search_runner::resolve_window(pref_global, search);
-            params.push(("publishedAfter", window.start_rfc3339.clone()));
-            params.push(("publishedBefore", window.end_rfc3339.clone()));
+            if let Some(window) = search_runner::resolve_window(pref_global, search) {
+                params.push(("publishedAfter", window.start_rfc3339.clone()));
+                params.push(("publishedBefore", window.end_rfc3339.clone()));
+            }
             println!("{} => {:?}", search.name, params);
         }
         return Ok(());

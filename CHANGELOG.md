@@ -8,9 +8,13 @@ All notable changes to YTSearch will be documented in this file.
 - Clipboard copy/paste support for individual presets, including dirty-state confirmation before replacing unsaved edits.
 - Import dialog option to replace existing presets or append to the current list, with scrollable JSON editors for large payloads.
 - Scrollable preset editor layout so Save/Cancel controls remain accessible even with extensive configuration.
+- Cached search results persist between launches and reload automatically without hitting the API.
+- Result sorting controls (Newest, Oldest, Shortest, Longest, Channel) in the results header.
 
 ### 🛠️ Changed
 - Status and button labels now match the preset workflow ("Load presets" / "Save presets").
+- Duration bucket chips now allow multi-select and automatically fall back to "Any length" when cleared.
+- Cached banner copy shortened and set to auto-hide after 5 seconds so the search button remains visible at narrow widths.
 
 ## [0.1.0] - 2025-09-27
 
@@ -18,7 +22,7 @@ All notable changes to YTSearch will be documented in this file.
 
 #### ✨ Features
 - **Multi-preset YouTube search** with strict filtering
-  - Date windows: Today, 48h, 7d, Custom
+  - Date windows: Today, 48h, 7d, Any date
   - English-first results (audio language + captions + title heuristics)
   - Duration filtering to avoid YouTube Shorts (configurable threshold)
   - Subject-limited search with terms, channel allow/deny lists

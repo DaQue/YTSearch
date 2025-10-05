@@ -5,8 +5,25 @@ pub fn time_window_label(preset: TimeWindowPreset) -> &'static str {
         TimeWindowPreset::Today => "Today",
         TimeWindowPreset::H48 => "48h",
         TimeWindowPreset::D7 => "7d",
-        TimeWindowPreset::Custom => "Custom",
+        TimeWindowPreset::AllTime => "Any date",
     }
+}
+
+pub fn format_duration(total_secs: u64) -> String {
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+
+    let mut parts = Vec::new();
+    if hours > 0 {
+        parts.push(format!("{}h", hours));
+    }
+    if minutes > 0 || hours > 0 {
+        parts.push(format!("{}m", minutes));
+    }
+    parts.push(format!("{}s", seconds));
+
+    parts.join(" ")
 }
 
 pub fn open_in_browser(url: &str) -> Result<(), String> {

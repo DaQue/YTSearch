@@ -65,7 +65,12 @@ pub fn tinted_toggle_button(ui: &mut egui::Ui, active: bool, label: &str, color:
     ui.add(
         egui::Button::new(RichText::new(label).strong().color(text_color))
             .min_size(egui::vec2(80.0, 28.0))
-            .fill(fill),
+            .fill(fill)
+            .stroke(if active {
+                Stroke::new(2.0, color)
+            } else {
+                Stroke::NONE
+            }),
     )
     .clicked()
 }

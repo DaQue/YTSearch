@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+pub mod cache;
 pub mod filters;
 pub mod prefs;
 pub mod search_runner;

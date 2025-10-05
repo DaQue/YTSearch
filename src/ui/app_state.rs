@@ -1,5 +1,6 @@
+use crate::cache::{self, CachedResults};
 use crate::filters;
-use crate::prefs::{self, MySearch, Prefs};
+use crate::prefs::{self, DurationBucketConfig, GlobalPrefs, MySearch, Prefs};
 use crate::search_runner::{RunMode, SearchOutcome};
 use crate::yt::types::VideoDetails;
 use anyhow::bail;
@@ -10,11 +11,269 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::sync::mpsc;
-use time::OffsetDateTime;
+use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 
 pub enum SearchResult {
     Success(SearchOutcome),
     Error(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResultSort {
+    Newest,
+    Oldest,
+    Shortest,
+    Longest,
+    Channel,
+}
+
+impl ResultSort {
+    pub fn label(self) -> &'static str {
+        match self {
+            ResultSort::Newest => "Newest",
+            ResultSort::Oldest => "Oldest",
+            ResultSort::Shortest => "Shortest",
+            ResultSort::Longest => "Longest",
+            ResultSort::Channel => "Channel",
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct DurationBucketState {
+    pub config: DurationBucketConfig,
+    pub selected: bool,
+}
+
+#[derive(Clone)]
+pub struct DurationFilterState {
+    pub allow_multiple: bool,
+    pub buckets: Vec<DurationBucketState>,
+}
+
+impl DurationFilterState {
+    pub fn from_global(global: &GlobalPrefs) -> Self {
+        let mut state = Self {
+            allow_multiple: global.duration_filters.allow_multiple,
+            buckets: global
+                .duration_filters
+                .buckets
+                .iter()
+                .cloned()
+                .map(|config| DurationBucketState {
+                    selected: false,
+                    config,
+                })
+                .collect(),
+        };
+        state.sync_from_ids(&global.active_duration_bucket_ids);
+        state
+    }
+
+    pub fn sync_from_ids(&mut self, ids: &[String]) -> bool {
+        let active: HashSet<&str> = ids.iter().map(|s| s.as_str()).collect();
+        let mut changed = false;
+        for bucket in &mut self.buckets {
+            let want = active.contains(bucket.config.id.as_str());
+            if bucket.selected != want {
+                bucket.selected = want;
+                changed = true;
+            }
+        }
+        changed |= self.ensure_minimum_selection();
+        if !self.allow_multiple {
+            changed |= self.enforce_single_selection();
+        }
+        changed
+    }
+
+    pub fn toggle(&mut self, id: &str) -> bool {
+        let mut changed = false;
+        if let Some(index) = self.buckets.iter().position(|b| b.config.id == id) {
+            let is_catch_all = self.buckets[index].config.is_catch_all();
+            if is_catch_all {
+                let new_state = !self.buckets[index].selected;
+                for bucket in &mut self.buckets {
+                    let should_select = bucket.config.id == id && new_state;
+                    if bucket.selected != should_select {
+                        bucket.selected = should_select;
+                        changed = true;
+                    }
+                }
+            } else if self.allow_multiple {
+                let new_state = !self.buckets[index].selected;
+                if self.buckets[index].selected != new_state {
+                    self.buckets[index].selected = new_state;
+                    changed = true;
+                }
+                if new_state {
+                    for bucket in &mut self.buckets {
+                        if bucket.config.is_catch_all() && bucket.selected {
+                            bucket.selected = false;
+                            changed = true;
+                        }
+                    }
+                } else {
+                    changed |= self.ensure_default_if_empty();
+                }
+            } else {
+                for (idx, bucket) in self.buckets.iter_mut().enumerate() {
+                    let should_select = idx == index;
+                    if bucket.selected != should_select {
+                        bucket.selected = should_select;
+                        changed = true;
+                    }
+                }
+            }
+
+            if !self.allow_multiple {
+                changed |= self.enforce_single_selection();
+            }
+            changed |= self.ensure_minimum_selection();
+        }
+        changed
+    }
+
+    pub fn selected_ids(&self) -> Vec<String> {
+        self.buckets
+            .iter()
+            .filter(|bucket| bucket.selected)
+            .map(|bucket| bucket.config.id.clone())
+            .collect()
+    }
+
+    pub fn allows(&self, secs: u64) -> bool {
+        let mut any_active = false;
+        for bucket in &self.buckets {
+            if bucket.selected {
+                any_active = true;
+                if bucket.config.contains(secs) {
+                    return true;
+                }
+            }
+        }
+        !any_active
+    }
+
+    fn ensure_minimum_selection(&mut self) -> bool {
+        if self.buckets.iter().any(|bucket| bucket.selected) {
+            return false;
+        }
+
+        if let Some((idx, _)) = self
+            .buckets
+            .iter()
+            .enumerate()
+            .find(|(_, bucket)| bucket.config.default_selected)
+        {
+            return self.select_only(idx);
+        }
+
+        self.activate_catch_all()
+            || self
+                .buckets
+                .first_mut()
+                .map(|bucket| {
+                    if bucket.selected {
+                        false
+                    } else {
+                        bucket.selected = true;
+                        true
+                    }
+                })
+                .unwrap_or(false)
+    }
+
+    fn enforce_single_selection(&mut self) -> bool {
+        if self.allow_multiple {
+            return false;
+        }
+        let mut found = false;
+        let mut changed = false;
+        for bucket in &mut self.buckets {
+            if bucket.selected {
+                if !found {
+                    found = true;
+                } else {
+                    bucket.selected = false;
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
+    fn ensure_default_if_empty(&mut self) -> bool {
+        if self.buckets.iter().any(|bucket| bucket.selected) {
+            return false;
+        }
+        self.activate_catch_all()
+    }
+
+    fn activate_catch_all(&mut self) -> bool {
+        let mut found = false;
+        let mut changed = false;
+        for bucket in &mut self.buckets {
+            let should_select = bucket.config.is_catch_all();
+            if should_select {
+                found = true;
+            }
+            if bucket.selected != should_select {
+                bucket.selected = should_select;
+                changed = true;
+            }
+        }
+        if found {
+            return changed;
+        }
+
+        if let Some(first) = self.buckets.first_mut() {
+            if !first.selected {
+                first.selected = true;
+                return true;
+            }
+        }
+        changed
+    }
+
+    fn select_only(&mut self, index: usize) -> bool {
+        let mut changed = false;
+        for (idx, bucket) in self.buckets.iter_mut().enumerate() {
+            let should_select = idx == index;
+            if bucket.selected != should_select {
+                bucket.selected = should_select;
+                changed = true;
+            }
+        }
+        changed
+    }
+}
+
+fn channel_sort_key(video: &VideoDetails) -> String {
+    let preferred = video
+        .channel_display_name
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_lowercase());
+    preferred
+        .or_else(|| {
+            let title = video.channel_title.trim();
+            if title.is_empty() {
+                None
+            } else {
+                Some(title.to_ascii_lowercase())
+            }
+        })
+        .or_else(|| {
+            let handle = video.channel_handle.trim();
+            if handle.is_empty() {
+                None
+            } else {
+                Some(handle.to_ascii_lowercase())
+            }
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Clone)]
@@ -135,15 +394,7 @@ impl PresetEditorState {
         copy
     }
 
-    fn apply_terms_to_self(
-        &mut self,
-    ) -> (
-        Vec<String>,
-        Vec<String>,
-        Vec<String>,
-        Vec<String>,
-        Vec<String>,
-    ) {
+    fn apply_terms_to_self(&mut self) -> TermBuckets {
         let any_terms = Self::normalized_terms_vec(&self.any_terms);
         let all_terms = Self::normalized_terms_vec(&self.all_terms);
         let not_terms = Self::normalized_terms_vec(&self.not_terms);
@@ -340,6 +591,8 @@ pub struct AppState {
     pub status: String,
     pub run_any_mode: bool,
     pub results: Vec<VideoDetails>,
+    pub result_sort: ResultSort,
+    pub duration_filter: DurationFilterState,
     pub runtime: Runtime,
     pub selected_search_id: Option<String>,
     pub pending_task: Option<JoinHandle<()>>,
@@ -348,6 +601,7 @@ pub struct AppState {
     pub preset_editor: Option<PresetEditorState>,
     pub import_dialog: Option<ImportDialogState>,
     pub export_dialog: Option<ExportDialogState>,
+    pub cached_banner_until: Option<OffsetDateTime>,
 }
 
 impl AppState {
@@ -357,6 +611,7 @@ impl AppState {
         let mut prefs = prefs::load_or_default();
         prefs::add_missing_defaults(&mut prefs);
         prefs::normalize_block_list(&mut prefs.blocked_channels);
+        prefs::normalize_duration_filters(&mut prefs.global);
         let mut status = String::from("Ready.");
 
         if prefs.api_key.trim().is_empty() {
@@ -380,11 +635,41 @@ impl AppState {
             .build()
             .expect("failed to start tokio runtime");
         let selected_search_id = prefs.searches.first().map(|s| s.id.clone());
-        Self {
+        let duration_filter = DurationFilterState::from_global(&prefs.global);
+        let mut results: Vec<VideoDetails> = Vec::new();
+        let mut cached_banner_until: Option<OffsetDateTime> = None;
+
+        if let Some(mut cached) = cache::load_cached_results() {
+            let blocked_keys = prefs::blocked_keys(&prefs.blocked_channels);
+            cached.videos.retain(|video| {
+                !filters::matches_channel(
+                    &video.channel_handle,
+                    &video.channel_title,
+                    &blocked_keys,
+                )
+            });
+            let count = cached.videos.len();
+            status = if count == 0 {
+                format!("Cached {} · no videos", cached.generated_at)
+            } else {
+                format!(
+                    "Cached {} · {} video{}",
+                    cached.generated_at,
+                    count,
+                    if count == 1 { "" } else { "s" }
+                )
+            };
+            cached_banner_until = Some(OffsetDateTime::now_utc() + Duration::seconds(5));
+            results = cached.videos;
+        }
+
+        let mut state = Self {
             prefs,
             status,
             run_any_mode: true,
-            results: Vec::new(),
+            results,
+            result_sort: ResultSort::Newest,
+            duration_filter,
             runtime,
             selected_search_id,
             pending_task: None,
@@ -393,6 +678,73 @@ impl AppState {
             preset_editor: None,
             import_dialog: None,
             export_dialog: None,
+            cached_banner_until,
+        };
+        state.apply_result_sort();
+        state
+    }
+
+    fn sync_duration_filter_to_prefs(&mut self) {
+        let selected = self.duration_filter.selected_ids();
+        if self.prefs.global.active_duration_bucket_ids != selected {
+            self.prefs.global.active_duration_bucket_ids = selected;
+        }
+    }
+
+    pub fn apply_result_sort(&mut self) {
+        match self.result_sort {
+            ResultSort::Newest => {
+                self.results
+                    .sort_by(|a, b| b.published_at.cmp(&a.published_at));
+            }
+            ResultSort::Oldest => {
+                self.results
+                    .sort_by(|a, b| a.published_at.cmp(&b.published_at));
+            }
+            ResultSort::Channel => {
+                self.results.sort_by(|a, b| {
+                    let a_key = channel_sort_key(a);
+                    let b_key = channel_sort_key(b);
+                    a_key
+                        .cmp(&b_key)
+                        .then_with(|| b.published_at.cmp(&a.published_at))
+                });
+            }
+            ResultSort::Shortest => {
+                self.results.sort_by(|a, b| {
+                    a.duration_secs
+                        .cmp(&b.duration_secs)
+                        .then_with(|| b.published_at.cmp(&a.published_at))
+                });
+            }
+            ResultSort::Longest => {
+                self.results.sort_by(|a, b| {
+                    b.duration_secs
+                        .cmp(&a.duration_secs)
+                        .then_with(|| b.published_at.cmp(&a.published_at))
+                });
+            }
+        }
+    }
+
+    pub(crate) fn normalize_duration_selection(&mut self) {
+        self.sync_duration_filter_to_prefs();
+        prefs::normalize_duration_filters(&mut self.prefs.global);
+        self.duration_filter
+            .sync_from_ids(&self.prefs.global.active_duration_bucket_ids);
+    }
+
+    pub fn persist_cached_results(&self) {
+        let now = OffsetDateTime::now_utc();
+        let generated_at = now.format(&Rfc3339).unwrap_or_else(|_| now.to_string());
+        let payload = CachedResults {
+            generated_at,
+            status_line: self.status.clone(),
+            videos: self.results.clone(),
+            saved_at_unix: now.unix_timestamp(),
+        };
+        if let Err(err) = cache::save_cached_results(&payload) {
+            eprintln!("Failed to save cached results: {err}");
         }
     }
 
@@ -404,7 +756,9 @@ impl AppState {
         self.results.clear();
         self.status = "Searching...".into();
         self.is_searching = true;
+        self.cached_banner_until = None;
 
+        self.normalize_duration_selection();
         let prefs_snapshot = self.prefs.clone();
         let mode = match self.determine_run_mode(&prefs_snapshot) {
             Ok(mode) => mode,
@@ -494,6 +848,8 @@ impl AppState {
         self.results.retain(|v| {
             !filters::matches_channel(&v.channel_handle, &v.channel_title, &blocked_keys)
         });
+        self.apply_result_sort();
+        self.cached_banner_until = None;
     }
 
     pub fn is_channel_blocked(&self, video: &VideoDetails) -> bool {
@@ -521,8 +877,10 @@ impl AppState {
     }
 
     pub fn open_new_preset(&mut self) {
-        let mut template = MySearch::default();
-        template.priority = self.prefs.searches.len() as i32;
+        let template = MySearch {
+            priority: self.prefs.searches.len() as i32,
+            ..MySearch::default()
+        };
         let editor = PresetEditorState::new(
             PresetEditorMode::New,
             &template,
@@ -942,3 +1300,10 @@ impl AppState {
         }
     }
 }
+type TermBuckets = (
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+);

@@ -6,6 +6,56 @@
     "require_captions": false,
     "verify_captions_with_oauth": false,
     "min_duration_secs": 120,
+    "duration_filters": {
+      "allow_multiple": true,
+      "buckets": [
+        {
+          "id": "any",
+          "label": "Any length",
+          "min_seconds": 0,
+          "max_seconds": null,
+          "default_selected": true
+        },
+        {
+          "id": "shorts",
+          "label": "Shorts (<3 min)",
+          "min_seconds": 0,
+          "max_seconds": 180,
+          "default_selected": false
+        },
+        {
+          "id": "brief",
+          "label": "Brief (3-15 min)",
+          "min_seconds": 180,
+          "max_seconds": 900,
+          "default_selected": false
+        },
+        {
+          "id": "medium",
+          "label": "Medium (15-30 min)",
+          "min_seconds": 900,
+          "max_seconds": 1800,
+          "default_selected": false
+        },
+        {
+          "id": "long",
+          "label": "Long (30-60 min)",
+          "min_seconds": 1800,
+          "max_seconds": 3600,
+          "default_selected": false
+        },
+        {
+          "id": "very-long",
+          "label": "Very Long (60+ min)",
+          "min_seconds": 3600,
+          "max_seconds": null,
+          "default_selected": false
+        }
+      ]
+    },
+    "active_duration_bucket_ids": [
+      "any"
+    ],
     "region_code": "US"
   },
   "searches": [

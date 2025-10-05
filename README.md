@@ -1,11 +1,13 @@
 # YTSearch
 
 A tiny desktop tool (Rust + egui) to search YouTube with **strict filters**:
-- Date window (Today / 48h / 7d / Custom)
+- Date window (Today / 48h / 7d / Any date)
 - English-leaning results
-- Avoid Shorts (duration >= threshold)
+- Avoid Shorts (duration >= threshold or multi-select length buckets)
 - Subject-limited search (terms, channel allow/deny, category)
 - Saved **My Searches** presets with Single / Any run modes
+- Cached results reopen instantly without spending quota
+- Result sorting (Newest, Oldest, Shortest, Longest, Channel)
 
 ✅ **Fully functional** YouTube search tool with robust API handling and modern UI.
 
@@ -31,8 +33,10 @@ See `CONTRIBUTING.md` for development details and `CHANGELOG.md` for release not
 
 🚧 **FUNCTIONAL** - Core search working, UI continues to improve
 - Multi-key fallback system operational (3 API keys with sequential retry)
-- CLI probe confirmed: 2 presets, 5 pages, 112 videos retrieved in 24h test
-- Preset editor now supports clipboard copy/paste, replace-vs-append imports, and scrollable forms for long configurations
+- Cached results reload on launch (banner auto-hides after 5s to keep controls visible)
+- Duration filters support mix-and-match buckets with automatic "Any" fallback
+- Result list can be sorted by newest/oldest, shortest/longest, or channel
+- Preset editor supports clipboard copy/paste, replace-vs-append imports, and scrollable forms for long configurations
 - Known issues: API key UI missing, preset editor still uses chip-style manual term entry
 
 ### Setup / Usage

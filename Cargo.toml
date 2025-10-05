@@ -1,6 +1,6 @@
 [package]
 name = "YTSearch"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 default-run = "YTSearch"
@@ -20,6 +20,7 @@ open = "5"
 time = { version = "0.3", features = ["parsing", "macros", "formatting"] }
 anyhow = "1"
 clap = { version = "4.5", features = ["derive"] }
+native-dialog = "0.6"  # GUI file dialogs without GTK dependencies
 
 [package.metadata]
 default-run = "YTSearch"

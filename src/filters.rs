@@ -1,6 +1,36 @@
 use crate::prefs::{GlobalPrefs, MySearch};
 use crate::yt::types::VideoDetails;
 
+pub fn duration_allows(duration_secs: u64, prefs: &GlobalPrefs) -> bool {
+    let config = &prefs.duration_filters;
+    let mut active_found = false;
+    for id in &prefs.active_duration_bucket_ids {
+        if let Some(bucket) = config.bucket_by_id(id) {
+            active_found = true;
+            if bucket.contains(duration_secs) {
+                return true;
+            }
+        }
+    }
+
+    if !active_found {
+        for bucket in &config.buckets {
+            if bucket.default_selected {
+                active_found = true;
+                if bucket.contains(duration_secs) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    if !active_found {
+        return true;
+    }
+
+    false
+}
+
 #[allow(dead_code)]
 pub fn parse_iso8601_duration(s: &str) -> Option<u64> {
     // Simple parser for PT#H#M#S (expand as needed)
@@ -47,6 +77,10 @@ pub fn matches_post_filters(
         .min_duration_override
         .unwrap_or(prefs.min_duration_secs) as u64;
     if video.duration_secs < min_secs {
+        return false;
+    }
+
+    if !duration_allows(video.duration_secs, prefs) {
         return false;
     }
 

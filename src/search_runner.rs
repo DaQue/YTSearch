@@ -54,10 +54,12 @@ struct SingleSearchOutcome {
 pub async fn run_searches(prefs: Prefs, mode: RunMode) -> Result<SearchOutcome> {
     let Prefs {
         api_key,
-        global,
+        mut global,
         searches,
         blocked_channels,
     } = prefs;
+
+    prefs::normalize_duration_filters(&mut global);
 
     let api_key = api_key.trim().to_owned();
     if api_key.is_empty() {
@@ -151,10 +153,11 @@ async fn run_single_search(
     search: &MySearch,
     blocked_keys: &[String],
 ) -> Result<SingleSearchOutcome> {
-    let window = resolve_window(global, search);
     let mut base_params = build_query_params(global, search)?;
-    base_params.push(("publishedAfter", window.start_rfc3339.clone()));
-    base_params.push(("publishedBefore", window.end_rfc3339.clone()));
+    if let Some(window) = resolve_window(global, search) {
+        base_params.push(("publishedAfter", window.start_rfc3339.clone()));
+        base_params.push(("publishedBefore", window.end_rfc3339.clone()));
+    }
     base_params.push(("order", "date".to_owned()));
     base_params.push(("maxResults", "25".to_owned()));
 
@@ -293,23 +296,23 @@ async fn enhance_channel_metadata(api_key: &str, videos: &mut [VideoDetails]) {
     }
 }
 
-pub fn resolve_window(global: &GlobalPrefs, search: &MySearch) -> TimeWindow {
+pub fn resolve_window(global: &GlobalPrefs, search: &MySearch) -> Option<TimeWindow> {
     if let Some(override_window) = &search.window_override {
-        return override_window.clone();
+        return Some(override_window.clone());
     }
 
     let preset = global.default_window;
     window_for_preset(preset)
 }
 
-fn window_for_preset(preset: TimeWindowPreset) -> TimeWindow {
+fn window_for_preset(preset: TimeWindowPreset) -> Option<TimeWindow> {
     let now = OffsetDateTime::now_utc();
     let (start, end) = match preset {
-        TimeWindowPreset::Today => (now - Duration::days(1), now),
-        TimeWindowPreset::H48 => (now - Duration::hours(48), now),
-        TimeWindowPreset::D7 => (now - Duration::days(7), now),
-        TimeWindowPreset::Custom => (now - Duration::days(7), now),
-    };
+        TimeWindowPreset::Today => Some((now - Duration::days(1), now)),
+        TimeWindowPreset::H48 => Some((now - Duration::hours(48), now)),
+        TimeWindowPreset::D7 => Some((now - Duration::days(7), now)),
+        TimeWindowPreset::AllTime => None,
+    }?;
 
     let start = start
         .format(&Rfc3339)
@@ -318,10 +321,10 @@ fn window_for_preset(preset: TimeWindowPreset) -> TimeWindow {
         .format(&Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned());
 
-    TimeWindow {
+    Some(TimeWindow {
         start_rfc3339: start,
         end_rfc3339: end,
-    }
+    })
 }
 
 pub fn build_query_params(

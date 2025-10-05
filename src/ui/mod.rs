@@ -10,6 +10,7 @@ use crate::filters;
 use crate::prefs;
 use egui::Context;
 use std::sync::mpsc::TryRecvError;
+use time::OffsetDateTime;
 
 impl eframe::App for AppState {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
@@ -53,14 +54,27 @@ impl eframe::App for AppState {
                         "Ran {presets} preset(s) across {pages} page(s); raw {raw}, unique {unique}, passed {passed}, kept {kept} (skipped {skipped_duplicates} duplicates)."
                     );
                     self.is_searching = false;
+                    self.cached_banner_until = None;
+                    self.apply_result_sort();
+                    self.persist_cached_results();
                 }
                 SearchResult::Error(err) => {
                     self.status = format!("Search failed: {err}");
                     self.is_searching = false;
+                    self.cached_banner_until = None;
                 }
             }
             self.search_rx = None;
             self.pending_task = None;
+        }
+
+        if let Some(until) = self.cached_banner_until {
+            if OffsetDateTime::now_utc() >= until {
+                self.cached_banner_until = None;
+                if self.status.starts_with("Cached ") {
+                    self.status = "Ready.".into();
+                }
+            }
         }
 
         // Validate selected search

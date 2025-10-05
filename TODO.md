@@ -22,6 +22,8 @@
 - Improve Single vs Any affordance further (maybe icon/toggle badge).
 - Provide channel-unblock confirmation / history.
 - Explore saved block list separate from prefs.json (e.g., dedicated file).
+- Make duration buckets (labels + ranges) editable from UI.
+- Add optional video thumbnails to result cards.
 
 ## Current Status: 🚧 FUNCTIONAL BUT INCOMPLETE
 

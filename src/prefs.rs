@@ -21,7 +21,131 @@ pub struct GlobalPrefs {
     pub require_captions: bool,
     pub verify_captions_with_oauth: bool,
     pub min_duration_secs: u32,
+    pub duration_filters: DurationFilterConfig,
+    pub active_duration_bucket_ids: Vec<String>,
     pub region_code: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct DurationFilterConfig {
+    pub buckets: Vec<DurationBucketConfig>,
+    pub allow_multiple: bool,
+}
+
+impl Default for DurationFilterConfig {
+    fn default() -> Self {
+        Self {
+            allow_multiple: true,
+            buckets: vec![
+                DurationBucketConfig {
+                    id: "any".into(),
+                    label: "Any length".into(),
+                    min_seconds: 0,
+                    max_seconds: None,
+                    default_selected: true,
+                },
+                DurationBucketConfig {
+                    id: "shorts".into(),
+                    label: "Shorts (<3 min)".into(),
+                    min_seconds: 0,
+                    max_seconds: Some(180),
+                    default_selected: false,
+                },
+                DurationBucketConfig {
+                    id: "brief".into(),
+                    label: "Brief (3-15 min)".into(),
+                    min_seconds: 180,
+                    max_seconds: Some(900),
+                    default_selected: false,
+                },
+                DurationBucketConfig {
+                    id: "medium".into(),
+                    label: "Medium (15-30 min)".into(),
+                    min_seconds: 900,
+                    max_seconds: Some(1800),
+                    default_selected: false,
+                },
+                DurationBucketConfig {
+                    id: "long".into(),
+                    label: "Long (30-60 min)".into(),
+                    min_seconds: 1800,
+                    max_seconds: Some(3600),
+                    default_selected: false,
+                },
+                DurationBucketConfig {
+                    id: "very-long".into(),
+                    label: "Very Long (60+ min)".into(),
+                    min_seconds: 3600,
+                    max_seconds: None,
+                    default_selected: false,
+                },
+            ],
+        }
+    }
+}
+
+impl DurationFilterConfig {
+    pub fn bucket_by_id(&self, id: &str) -> Option<&DurationBucketConfig> {
+        self.buckets.iter().find(|bucket| bucket.id == id)
+    }
+
+    pub fn default_active_ids(&self) -> Vec<String> {
+        let mut defaults: Vec<String> = self
+            .buckets
+            .iter()
+            .filter(|bucket| bucket.default_selected)
+            .map(|bucket| bucket.id.clone())
+            .collect();
+        if defaults.is_empty() {
+            if let Some(catch_all) = self.buckets.iter().find(|bucket| bucket.is_catch_all()) {
+                defaults.push(catch_all.id.clone());
+            } else if let Some(first) = self.buckets.first() {
+                defaults.push(first.id.clone());
+            }
+        }
+        defaults
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct DurationBucketConfig {
+    pub id: String,
+    pub label: String,
+    pub min_seconds: u32,
+    pub max_seconds: Option<u32>,
+    pub default_selected: bool,
+}
+
+impl Default for DurationBucketConfig {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            label: String::new(),
+            min_seconds: 0,
+            max_seconds: None,
+            default_selected: true,
+        }
+    }
+}
+
+impl DurationBucketConfig {
+    pub fn contains(&self, secs: u64) -> bool {
+        if secs < self.min_seconds as u64 {
+            return false;
+        }
+        if let Some(max) = self.max_seconds {
+            if secs >= max as u64 {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn is_catch_all(&self) -> bool {
+        self.min_seconds == 0 && self.max_seconds.is_none()
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -56,7 +180,8 @@ pub enum TimeWindowPreset {
     H48,
     #[default]
     D7,
-    Custom,
+    #[serde(alias = "Custom")]
+    AllTime,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -67,12 +192,16 @@ pub struct TimeWindow {
 
 impl Default for GlobalPrefs {
     fn default() -> Self {
+        let duration_filters = DurationFilterConfig::default();
+        let active_duration_bucket_ids = duration_filters.default_active_ids();
         Self {
             default_window: TimeWindowPreset::default(),
             english_only: true,
             require_captions: false,
             verify_captions_with_oauth: false,
             min_duration_secs: 75,
+            duration_filters,
+            active_duration_bucket_ids,
             region_code: Some("US".into()),
         }
     }
@@ -86,6 +215,7 @@ pub fn load_or_default() -> Prefs {
         builtin_default()
     };
     add_missing_defaults(&mut prefs);
+    normalize_duration_filters(&mut prefs.global);
     normalize_block_list(&mut prefs.blocked_channels);
     prefs
 }
@@ -114,6 +244,30 @@ pub fn add_missing_defaults(prefs: &mut Prefs) {
             prefs.searches.push(default_search);
         }
     }
+}
+
+pub fn normalize_duration_filters(global: &mut GlobalPrefs) {
+    let config = &global.duration_filters;
+    let mut active: Vec<String> = Vec::new();
+    for bucket in &config.buckets {
+        if global
+            .active_duration_bucket_ids
+            .iter()
+            .any(|id| id == &bucket.id)
+        {
+            active.push(bucket.id.clone());
+            if !config.allow_multiple {
+                break;
+            }
+        }
+    }
+    if active.is_empty() {
+        active = config.default_active_ids();
+    }
+    if !config.allow_multiple && active.len() > 1 {
+        active.truncate(1);
+    }
+    global.active_duration_bucket_ids = active;
 }
 
 pub fn normalize_block_list(list: &mut Vec<String>) {

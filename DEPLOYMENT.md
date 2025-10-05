@@ -5,12 +5,7 @@
 ### Pre-Release Checklist
 
 1. **Code Quality**
-   ```bash
-   cargo fmt
-   cargo clippy --all-targets -- -D warnings
-   cargo check --all-targets
-   cargo test
-   ```
+   - Ensure formatting, linting, and tests pass locally before cutting a release.
 
 2. **Integration Testing**
    ```bash

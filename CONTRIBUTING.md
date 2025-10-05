@@ -18,10 +18,8 @@ Thanks for your interest in contributing to YTSearch! This document provides gui
    echo "YOUR_THIRD_KEY" > YT_API_private,old
    ```
 
-3. **Test the Build**
+3. **Dry Run CLI**
    ```bash
-   cargo check
-   cargo test
    cargo run --bin probe -- --dry-run
    ```
 
@@ -72,31 +70,23 @@ src/
 ## 🛠️ Development Guidelines
 
 ### Code Style
-- **Rust 2021 Edition** with `cargo fmt` and `cargo clippy`
+- Stick with Rust 2021 edition defaults; keep formatting and lint warnings clean before sending patches.
 - **Error handling**: Use `anyhow` for error propagation, meaningful error messages
 - **Async**: Tokio runtime, non-blocking UI operations
 - **Documentation**: Public APIs documented with `///` comments
 
 ### Testing
-```bash
-# Run all checks before submitting
-cargo check
-cargo clippy
-cargo test
-cargo fmt
-
-# Test with real API calls (requires keys)
-cargo run --bin probe -- --hours 1 --limit 3
-```
+- When you need to exercise the live API, run:
+  ```bash
+  cargo run --bin probe -- --hours 1 --limit 3
+  ```
+- Launch the UI after changes to verify visuals and shortcuts:
+  ```bash
+  cargo run
+  ```
 
 ### Commit Messages
-```
-feat: add OAuth support for captions.list API
-fix: handle empty API response gracefully  
-docs: update setup instructions for Windows
-refactor: extract theme constants to separate module
-test: add unit tests for duration parsing
-```
+- Keep commits focused and consider conventional prefixes like `feat:`, `fix:`, or `docs:` when they help reviewers.
 
 ## 🔑 API Key Management
 
@@ -119,15 +109,8 @@ test: add unit tests for duration parsing
    - Update documentation as needed
 
 3. **Test Thoroughly**
-   ```bash
-   # Ensure clean build
-   cargo check --all-targets
-   cargo clippy --all-targets
-   
-   # Test with API calls
-   cargo run --bin probe -- --hours 1
-   cargo run  # Test UI
-   ```
+   - Make sure automated checks pass locally.
+   - See the Testing section below for project-specific checks.
 
 4. **Submit PR**
    - Clear description of changes and motivation

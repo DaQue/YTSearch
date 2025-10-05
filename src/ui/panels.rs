@@ -5,9 +5,9 @@ use egui::{
     TextStyle,
 };
 
-use super::app_state::AppState;
+use super::app_state::{AppState, ResultSort};
 use super::theme::*;
-use super::utils::{open_in_browser, time_window_label};
+use super::utils::{format_duration, open_in_browser, time_window_label};
 
 impl AppState {
     pub fn render_top_panel(&mut self, ctx: &Context) -> bool {
@@ -85,8 +85,8 @@ impl AppState {
                                         );
                                         ui.selectable_value(
                                             &mut self.prefs.global.default_window,
-                                            TimeWindowPreset::Custom,
-                                            "Custom",
+                                            TimeWindowPreset::AllTime,
+                                            "Any date",
                                         );
                                     });
                                 ui.add_space(12.0);
@@ -101,6 +101,36 @@ impl AppState {
                                         .range(0..=7200),
                                 );
                             });
+                            ui.add_space(6.0);
+                            let length_buttons: Vec<(String, String, bool, Color32)> = self
+                                .duration_filter
+                                .buckets
+                                .iter()
+                                .enumerate()
+                                .map(|(idx, bucket)| {
+                                    let color = PRESET_COLORS[idx % PRESET_COLORS.len()];
+                                    let label = if bucket.selected {
+                                        format!("● {}", bucket.config.label)
+                                    } else {
+                                        bucket.config.label.clone()
+                                    };
+                                    (bucket.config.id.clone(), label, bucket.selected, color)
+                                })
+                                .collect();
+                            if !length_buttons.is_empty() {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.label("Length:");
+                                    ui.add_space(4.0);
+                                    for (id, label, selected, color) in length_buttons {
+                                        if tinted_toggle_button(ui, selected, label.as_str(), color)
+                                            && self.duration_filter.toggle(&id)
+                                        {
+                                            self.normalize_duration_selection();
+                                        }
+                                        ui.add_space(4.0);
+                                    }
+                                });
+                            }
                         });
                     });
             });
@@ -217,6 +247,7 @@ impl AppState {
                                 .fill(ACCENT_SAVE)
                                 .min_size(egui::vec2(120.0, 28.0));
                                 if scroll_ui.add(save_button).clicked() {
+                                    self.normalize_duration_selection();
                                     if let Err(e) = prefs::save(&self.prefs) {
                                         self.status = format!("Save error: {e}");
                                     } else {
@@ -259,7 +290,27 @@ impl AppState {
 
     pub fn render_central_panel(&mut self, ctx: &Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Results");
+            ui.horizontal(|ui| {
+                ui.heading("Results");
+                ui.add_space(8.0);
+                let previous_sort = self.result_sort;
+                egui::ComboBox::from_label("Sort")
+                    .selected_text(self.result_sort.label())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.result_sort, ResultSort::Newest, "Newest");
+                        ui.selectable_value(&mut self.result_sort, ResultSort::Oldest, "Oldest");
+                        ui.selectable_value(
+                            &mut self.result_sort,
+                            ResultSort::Shortest,
+                            "Shortest",
+                        );
+                        ui.selectable_value(&mut self.result_sort, ResultSort::Longest, "Longest");
+                        ui.selectable_value(&mut self.result_sort, ResultSort::Channel, "Channel");
+                    });
+                if self.result_sort != previous_sort {
+                    self.apply_result_sort();
+                }
+            });
             if self.is_searching {
                 ui.label("Searching...");
             } else if self.results.is_empty() {
@@ -267,8 +318,12 @@ impl AppState {
             } else {
                 let mut block_requests: Vec<(String, String)> = Vec::new();
                 let results_snapshot = self.results.clone();
+                let filtered_results: Vec<VideoDetails> = results_snapshot
+                    .into_iter()
+                    .filter(|video| self.duration_filter.allows(video.duration_secs))
+                    .collect();
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    for video in &results_snapshot {
+                    for video in &filtered_results {
                         self.render_video_card(ui, video, &mut block_requests);
                         ui.add_space(6.0);
                     }
@@ -407,11 +462,10 @@ impl AppState {
                                     "Override time window (RFC3339)",
                                 )
                                 .clicked()
+                                && !editor.window_override_enabled
                             {
-                                if !editor.window_override_enabled {
-                                    editor.window_start.clear();
-                                    editor.window_end.clear();
-                                }
+                                editor.window_start.clear();
+                                editor.window_end.clear();
                             }
                             if editor.window_override_enabled {
                                 ui.label("Start");
@@ -802,7 +856,10 @@ impl AppState {
                     }
                 });
                 ui.label(format!("Published: {}", video.published_at));
-                ui.label(format!("Duration: {} sec", video.duration_secs));
+                ui.label(format!(
+                    "Duration: {}",
+                    format_duration(video.duration_secs)
+                ));
                 if !video.source_presets.is_empty() {
                     ui.add_space(6.0);
                     ui.horizontal_wrapped(|ui| {
@@ -878,14 +935,13 @@ fn render_token_editor(
 
         if commit {
             let value = new_token.trim();
-            if !value.is_empty() {
-                if !tokens
+            if !value.is_empty()
+                && !tokens
                     .iter()
                     .any(|existing| existing.eq_ignore_ascii_case(value))
-                {
-                    tokens.push(value.to_string());
-                    crate::ui::app_state::PresetEditorState::normalize_terms(tokens);
-                }
+            {
+                tokens.push(value.to_string());
+                crate::ui::app_state::PresetEditorState::normalize_terms(tokens);
             }
             new_token.clear();
         }
