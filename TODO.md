@@ -17,10 +17,14 @@
 - Env override to cap pages per run: `YTSEARCH_MAX_SEARCH_PAGES` (default 2).
 
 ## Outstanding / Follow-up Ideas
-1. Show results counter as “passed/downloaded” (e.g., `47/200`) in the results header.
-2. Provide channel-unblock confirmation / history.
-3. Explore saved block list separate from prefs.json (e.g., dedicated file).
-4. Make duration buckets (labels + ranges) editable from UI.
+1. Provide channel-unblock confirmation / history.
+2. Explore saved block list separate from prefs.json (e.g., dedicated file).
+3. Make duration buckets (labels + ranges) editable from UI.
+4. Fix filtering for Rust-specific videos.
+5. Fix window title so it displays the version (currently shows only “YTSearch”).
+6. Investigate why Any/Everything searches only return 7/7 (expect 100) results.
+7. Implement “Search more” functionality to fetch additional pages.
+5. Ensure every function has at least one comment explaining its purpose.
 
 ## Current Status: 🚧 FUNCTIONAL BUT INCOMPLETE
 

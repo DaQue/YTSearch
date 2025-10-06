@@ -31,14 +31,17 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                 state.apply_result_sort();
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(format!("Downloaded: {}", state.results_all.len()));
+                ui.label(format!(
+                    "Results: {}/{}",
+                    state.results.len(),
+                    state.results_all.len()
+                ));
             });
         });
         if state.is_searching {
             ui.label("Searching...");
         } else if state.results.is_empty() {
             ui.label("No results yet. Enter your API key and click Search.");
-            ui.label(format!("Visible after filters: {}", state.results.len()));
         } else {
             let mut block_requests: Vec<(String, String)> = Vec::new();
             let results_snapshot = state.results.clone();
@@ -46,7 +49,6 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                 .into_iter()
                 .filter(|video| state.duration_filter.allows(video.duration_secs))
                 .collect();
-            ui.label(format!("Visible after filters: {}", filtered_results.len()));
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for video in &filtered_results {
                     render_video_card(state, ui, video, &mut block_requests);

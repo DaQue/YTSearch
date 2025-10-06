@@ -22,6 +22,7 @@ pub struct ImportDialogState {
     pub mode: ImportMode,
     pub error: Option<String>,
     pub replace_existing: bool,
+    pub awaiting_clipboard: bool,
 }
 
 pub struct ExportDialogState {
@@ -40,6 +41,7 @@ impl AppState {
             mode: ImportMode::Clipboard,
             error: None,
             replace_existing: false,
+            awaiting_clipboard: false,
         });
     }
 
@@ -82,6 +84,7 @@ impl AppState {
                         mode: ImportMode::File,
                         error: None,
                         replace_existing: true,
+                        awaiting_clipboard: false,
                     });
                 }
                 Err(err) => {
@@ -119,6 +122,7 @@ impl AppState {
         }
     }
 
+    /// Ingest presets from the import dialog and merge/replace as requested.
     pub fn apply_import(&mut self) {
         let Some(mut dialog) = self.import_dialog.take() else {
             return;
@@ -190,6 +194,8 @@ impl AppState {
             }
         }
 
+        prefs::add_missing_defaults(&mut self.prefs);
+
         if let Err(err) = prefs::save(&self.prefs) {
             dialog.error = Some(format!("Failed to save prefs: {err}"));
             self.import_dialog = Some(dialog);
@@ -197,10 +203,7 @@ impl AppState {
         }
 
         self.status = format!("Imported {added} preset(s).");
-        if dialog.replace_existing {
-            self.selected_search_id = self.prefs.searches.first().map(|s| s.id.clone());
-        } else {
-            self.selected_search_id = self.prefs.searches.last().map(|s| s.id.clone());
-        }
+        self.selected_search_id = None;
+        self.refresh_visible_results();
     }
 }

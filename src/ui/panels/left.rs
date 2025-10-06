@@ -106,16 +106,22 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                             .map(|id| id == search.id)
                                             .unwrap_or(false);
                                         if ui.selectable_label(selected, &search.name).clicked() {
-                                            select_id = Some(search.id.clone());
+                                            if selected {
+                                                select_id = Some(String::new());
+                                            } else {
+                                                select_id = Some(search.id.clone());
+                                            }
                                         }
                                         ui.menu_button("⋮", |menu_ui| {
-                                            if menu_ui
-                                                .button("Edit")
-                                                .on_hover_text("Edit this preset")
-                                                .clicked()
-                                            {
-                                                row_action = Some(PresetAction::Edit(index));
-                                                menu_ui.close_menu();
+                                            if !search.system {
+                                                if menu_ui
+                                                    .button("Edit")
+                                                    .on_hover_text("Edit this preset")
+                                                    .clicked()
+                                                {
+                                                    row_action = Some(PresetAction::Edit(index));
+                                                    menu_ui.close_menu();
+                                                }
                                             }
                                             if menu_ui
                                                 .button("Duplicate")
@@ -125,18 +131,24 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                                 row_action = Some(PresetAction::Duplicate(index));
                                                 menu_ui.close_menu();
                                             }
-                                            if menu_ui
-                                                .button("Delete")
-                                                .on_hover_text("Remove this preset")
-                                                .clicked()
-                                            {
-                                                row_action = Some(PresetAction::Delete(index));
-                                                menu_ui.close_menu();
+                                            if !search.system {
+                                                if menu_ui
+                                                    .button("Delete")
+                                                    .on_hover_text("Remove this preset")
+                                                    .clicked()
+                                                {
+                                                    row_action = Some(PresetAction::Delete(index));
+                                                    menu_ui.close_menu();
+                                                }
                                             }
                                         });
                                     });
                                     if let Some(id) = select_id {
-                                        state.selected_search_id = Some(id);
+                                        if id.is_empty() {
+                                            state.selected_search_id = None;
+                                        } else {
+                                            state.selected_search_id = Some(id);
+                                        }
                                         state.refresh_visible_results();
                                     }
                                     if pending_action.is_none() {

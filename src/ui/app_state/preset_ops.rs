@@ -7,6 +7,7 @@ use crate::prefs::{self, MySearch, Prefs};
 use super::{AppState, PresetEditorMode, PresetEditorState};
 
 impl AppState {
+    /// Open the preset editor with a blank template.
     pub fn open_new_preset(&mut self) {
         let template = MySearch {
             priority: self.prefs.searches.len() as i32,
@@ -22,8 +23,13 @@ impl AppState {
         self.preset_editor = Some(editor);
     }
 
+    /// Launch the editor for an existing preset unless it is system-owned.
     pub fn open_edit_preset(&mut self, index: usize) {
         if let Some(existing) = self.prefs.searches.get(index) {
+            if existing.system {
+                self.status = "System presets cannot be edited.".into();
+                return;
+            }
             let editor = PresetEditorState::new(
                 PresetEditorMode::Edit { index },
                 existing,
@@ -35,12 +41,14 @@ impl AppState {
         }
     }
 
+    /// Duplicate a preset into the editor for quick modifications.
     pub fn open_duplicate_preset(&mut self, index: usize) {
         if let Some(existing) = self.prefs.searches.get(index) {
             let mut duplicate = existing.clone();
             if !duplicate.name.trim().is_empty() {
                 duplicate.name = format!("{} copy", duplicate.name.trim());
             }
+            duplicate.system = false;
             let mut editor = PresetEditorState::new(
                 PresetEditorMode::Duplicate {
                     source_index: index,
@@ -57,11 +65,25 @@ impl AppState {
         }
     }
 
+    /// Delete a preset, restoring defaults if the list becomes empty.
     pub fn delete_preset(&mut self, index: usize) {
         if index >= self.prefs.searches.len() {
             return;
         }
+        if self.prefs.searches[index].system {
+            self.status = "System preset cannot be deleted.".into();
+            return;
+        }
         let removed = self.prefs.searches.remove(index);
+        if self.prefs.searches.is_empty() {
+            self.reset_to_defaults();
+            self.status = format!(
+                "Removed preset '{}'. Restored default preset set.",
+                removed.name
+            );
+            return;
+        }
+
         if let Err(err) = prefs::save(&self.prefs) {
             self.status = format!("Failed to save prefs: {err}");
         } else {
@@ -194,6 +216,7 @@ impl AppState {
         base.trim_matches('-').to_string()
     }
 
+    /// Generate a unique slug for a preset name, avoiding existing IDs.
     pub(crate) fn generate_unique_id_with(&self, name: &str, existing: &[MySearch]) -> String {
         let mut base = Self::sanitize_id_source(name);
         if base.is_empty() {
@@ -208,10 +231,12 @@ impl AppState {
         candidate
     }
 
+    /// Convenience wrapper to generate an ID against the current preset list.
     pub(crate) fn generate_unique_id(&self, name: &str) -> String {
         self.generate_unique_id_with(name, &self.prefs.searches)
     }
 
+    /// Parse JSON text from the clipboard into a single preset structure.
     pub(crate) fn parse_clipboard_preset(&self, raw: &str) -> AnyResult<MySearch> {
         let trimmed = raw.trim();
 
@@ -238,6 +263,7 @@ impl AppState {
         bail!("Clipboard JSON did not contain a preset.");
     }
 
+    /// Apply clipboard-derived preset contents into the active editor session.
     pub(crate) fn apply_clipboard_preset(&mut self, mut preset: MySearch) {
         if let Some(editor) = self.preset_editor.as_mut() {
             match editor.mode {

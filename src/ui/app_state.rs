@@ -72,6 +72,7 @@ mod preset_ops;
 pub use dialogs::{ExportDialogState, ExportMode, ImportDialogState, ImportMode};
 
 impl AppState {
+    /// Initialize UI state, loading prefs, cached results, and runtime.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         super::theme::apply_gfv_theme(&cc.egui_ctx);
 
@@ -101,7 +102,6 @@ impl AppState {
             .enable_all()
             .build()
             .expect("failed to start tokio runtime");
-        let selected_search_id = prefs.searches.first().map(|s| s.id.clone());
         let duration_filter = DurationFilterState::from_global(&prefs.global);
         let mut initial_results_all: Vec<VideoDetails> = Vec::new();
         let mut cached_banner_until: Option<OffsetDateTime> = None;
@@ -139,7 +139,7 @@ impl AppState {
             result_sort: ResultSort::Newest,
             duration_filter,
             runtime,
-            selected_search_id,
+            selected_search_id: None,
             pending_task: None,
             search_rx: None,
             is_searching: false,
@@ -202,11 +202,13 @@ impl AppState {
         }
     }
 
+    /// Drop cached textures for videos that are no longer present.
     pub(super) fn sync_thumbnail_cache(&mut self) {
         let ids = self.results_all.iter().map(|video| video.id.as_str());
         self.thumbnail_cache.retain_ids(ids);
     }
 
+    /// Request or fetch a thumbnail for the given video, returning it if ready.
     pub fn thumbnail_for_video(
         &mut self,
         ctx: &Context,
@@ -221,6 +223,7 @@ impl AppState {
         self.thumbnail_cache.thumbnail(&video.id)
     }
 
+    /// Restore built-in presets while keeping API key/min duration, clearing cache/state.
     pub fn reset_to_defaults(&mut self) {
         let saved_api_key = self.prefs.api_key.clone();
         let saved_min_duration = self.prefs.global.min_duration_secs;
@@ -241,7 +244,7 @@ impl AppState {
         self.results_all.clear();
         self.thumbnail_cache.clear();
         self.sync_thumbnail_cache();
-        self.selected_search_id = self.prefs.searches.first().map(|s| s.id.clone());
+        self.selected_search_id = None;
         self.apply_result_sort();
         self.cached_banner_until = None;
         self.status = "Defaults restored. Adjust filters and search.".into();
@@ -251,6 +254,7 @@ impl AppState {
         }
     }
 
+    /// Persist duration filter selections back into preferences.
     pub(crate) fn normalize_duration_selection(&mut self) {
         self.sync_duration_filter_to_prefs();
         prefs::normalize_duration_filters(&mut self.prefs.global);
@@ -258,6 +262,7 @@ impl AppState {
             .sync_from_ids(&self.prefs.global.active_duration_bucket_ids);
     }
 
+    /// Recalculate visible results based on run mode and preset selection.
     pub fn refresh_visible_results(&mut self) {
         let mut filtered: Vec<VideoDetails> = Vec::new();
         if self.run_any_mode {
@@ -282,36 +287,28 @@ impl AppState {
                 }
             }
         } else {
-            let selected_id = self
-                .selected_search_id
-                .clone()
-                .or_else(|| self.prefs.searches.first().map(|s| s.id.clone()));
-            let Some(selected_id) = selected_id else {
-                self.results.clear();
-                return;
-            };
-
-            let selected_name = self
-                .prefs
-                .searches
-                .iter()
-                .find(|preset| preset.id == selected_id)
-                .map(|preset| preset.name.clone());
-            self.selected_search_id = Some(selected_id);
-
-            if let Some(selected_name) = selected_name {
-                for video in &self.results_all {
-                    if video
-                        .source_presets
-                        .iter()
-                        .any(|name| name == &selected_name)
-                    {
-                        filtered.push(video.clone());
+            if let Some(selected_id) = self.selected_search_id.clone() {
+                if let Some(selected_preset) = self
+                    .prefs
+                    .searches
+                    .iter()
+                    .find(|preset| preset.id == selected_id)
+                {
+                    for video in &self.results_all {
+                        if video
+                            .source_presets
+                            .iter()
+                            .any(|name| name == &selected_preset.name)
+                        {
+                            filtered.push(video.clone());
+                        }
                     }
+                } else {
+                    self.selected_search_id = None;
+                    filtered = self.results_all.clone();
                 }
             } else {
-                self.results.clear();
-                return;
+                filtered = self.results_all.clone();
             }
         }
 
@@ -319,6 +316,7 @@ impl AppState {
         self.apply_result_sort();
     }
 
+    /// Write current results to disk so next launch can reuse them.
     pub fn persist_cached_results(&self) {
         let now = OffsetDateTime::now_utc();
         let generated_at = now.format(&Rfc3339).unwrap_or_else(|_| now.to_string());
@@ -333,6 +331,7 @@ impl AppState {
         }
     }
 
+    /// Start an async search task using current prefs and UI state.
     pub fn launch_search(&mut self) {
         if let Some(handle) = self.pending_task.take() {
             handle.abort();
@@ -367,16 +366,18 @@ impl AppState {
         self.search_rx = Some(rx);
     }
 
+    /// Derive run mode from UI state, falling back to Any if nothing is selected.
     pub fn determine_run_mode(&self, prefs: &Prefs) -> Result<RunMode, String> {
         if self.run_any_mode {
             Ok(RunMode::Any)
         } else {
-            let id = self
-                .selected_search_id
-                .clone()
-                .or_else(|| prefs.searches.first().map(|s| s.id.clone()))
-                .ok_or_else(|| "Add a preset before searching.".to_string())?;
-            Ok(RunMode::Single(id))
+            if let Some(id) = self.selected_search_id.clone() {
+                Ok(RunMode::Single(id))
+            } else if prefs.searches.is_empty() {
+                Ok(RunMode::Any)
+            } else {
+                Ok(RunMode::Any)
+            }
         }
     }
 

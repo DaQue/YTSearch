@@ -160,6 +160,7 @@ pub struct MySearch {
     pub require_captions_override: Option<bool>,
     pub min_duration_override: Option<u32>,
     pub priority: i32,
+    pub system: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]

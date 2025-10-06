@@ -11,6 +11,13 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
 }
 
 fn render_import_dialog(state: &mut AppState, ctx: &Context) {
+    let pasted_text = ctx.input(|i| {
+        i.events.iter().rev().find_map(|event| match event {
+            egui::Event::Paste(text) => Some(text.clone()),
+            _ => None,
+        })
+    });
+
     let mut wants_import = false;
     let mut wants_cancel_import = false;
     let mut wants_switch_to_file = false;
@@ -38,6 +45,10 @@ fn render_import_dialog(state: &mut AppState, ctx: &Context) {
                 // Show current file path if loaded from file
                 if let Some(path) = &dialog.file_path {
                     ui.label(format!("Loaded from: {}", path));
+                }
+
+                if dialog.awaiting_clipboard {
+                    ui.colored_label(Color32::LIGHT_BLUE, "Waiting for clipboard… press Ctrl+V or use the button below");
                 }
 
                 ui.add_space(6.0);
@@ -91,6 +102,21 @@ fn render_import_dialog(state: &mut AppState, ctx: &Context) {
             dialog.mode = ImportMode::Clipboard;
             dialog.file_path = None;
             dialog.replace_existing = false;
+            dialog.awaiting_clipboard = true;
+            dialog.raw_json.clear();
+            dialog.error = None;
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+        }
+    }
+
+    if let Some(dialog) = state.import_dialog.as_mut() {
+        if dialog.awaiting_clipboard {
+            if let Some(text) = pasted_text {
+                dialog.raw_json = text;
+                dialog.file_path = None;
+                dialog.awaiting_clipboard = false;
+                dialog.mode = ImportMode::Clipboard;
+            }
         }
     }
 }

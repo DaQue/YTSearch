@@ -19,6 +19,10 @@ use time::OffsetDateTime;
 
 impl eframe::App for AppState {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
+            "YTSearch v{}",
+            env!("CARGO_PKG_VERSION")
+        )));
         // Handle incoming search results
         let incoming = if let Some(rx) = self.search_rx.as_mut() {
             match rx.try_recv() {

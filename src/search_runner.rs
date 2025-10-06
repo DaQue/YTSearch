@@ -327,15 +327,20 @@ fn window_for_preset(preset: TimeWindowPreset) -> Option<TimeWindow> {
     })
 }
 
+/// Construct the parameter list for a search request, tolerating empty queries for system presets.
 pub fn build_query_params(
     global: &GlobalPrefs,
     search: &MySearch,
 ) -> Result<Vec<(&'static str, String)>> {
     let mut params = Vec::new();
-    let query_text = build_query_text(&search.query);
+    let mut query_text = build_query_text(&search.query);
 
     if query_text.trim().is_empty() {
-        bail!("Search query is empty. Add some terms to your preset.");
+        if search.system {
+            query_text = "\"\"".to_string();
+        } else {
+            bail!("Search query is empty. Add some terms to your preset.");
+        }
     }
     params.push(("q", query_text));
 
