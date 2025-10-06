@@ -24,6 +24,7 @@
 5. Fix window title so it displays the version (currently shows only “YTSearch”).
 6. Investigate why Any/Everything searches only return 7/7 (expect 100) results.
 7. Implement “Search more” functionality to fetch additional pages.
+8. Remove the window title bar and display the version inline between “YTSearch” and “Results” header in smaller text.
 5. Ensure every function has at least one comment explaining its purpose.
 
 ## Current Status: 🚧 FUNCTIONAL BUT INCOMPLETE
