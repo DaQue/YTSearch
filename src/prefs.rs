@@ -233,7 +233,7 @@ fn prefs_path() -> PathBuf {
     proj.config_dir().join("prefs.json")
 }
 
-fn builtin_default() -> Prefs {
+pub fn builtin_default() -> Prefs {
     serde_json::from_str(DEFAULT_PREFS_JSON).unwrap_or_default()
 }
 

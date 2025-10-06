@@ -221,6 +221,36 @@ impl AppState {
         self.thumbnail_cache.thumbnail(&video.id)
     }
 
+    pub fn reset_to_defaults(&mut self) {
+        let saved_api_key = self.prefs.api_key.clone();
+        let saved_min_duration = self.prefs.global.min_duration_secs;
+
+        let mut defaults = prefs::builtin_default();
+        defaults.api_key = saved_api_key;
+        defaults.blocked_channels.clear();
+        defaults.global.min_duration_secs = saved_min_duration;
+        defaults.global.active_duration_bucket_ids =
+            defaults.global.duration_filters.default_active_ids();
+
+        prefs::normalize_duration_filters(&mut defaults.global);
+        prefs::normalize_block_list(&mut defaults.blocked_channels);
+
+        self.prefs = defaults;
+        self.duration_filter = DurationFilterState::from_global(&self.prefs.global);
+        self.results.clear();
+        self.results_all.clear();
+        self.thumbnail_cache.clear();
+        self.sync_thumbnail_cache();
+        self.selected_search_id = self.prefs.searches.first().map(|s| s.id.clone());
+        self.apply_result_sort();
+        self.cached_banner_until = None;
+        self.status = "Defaults restored. Adjust filters and search.".into();
+
+        if let Err(err) = prefs::save(&self.prefs) {
+            self.status = format!("Defaults restored, but failed to save: {err}");
+        }
+    }
+
     pub(crate) fn normalize_duration_selection(&mut self) {
         self.sync_duration_filter_to_prefs();
         prefs::normalize_duration_filters(&mut self.prefs.global);

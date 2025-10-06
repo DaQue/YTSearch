@@ -27,7 +27,11 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) -> bool {
                             ui.add_space(12.0);
                             ui.colored_label(STATUS_ACCENT, RichText::new(&state.status).strong());
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if ui.button("Help").clicked() {
+                                if ui
+                                    .button("Help")
+                                    .on_hover_text("Show in-app help and shortcuts")
+                                    .clicked()
+                                {
                                     state.show_help_dialog = true;
                                 }
                                 ui.add_space(6.0);
@@ -36,34 +40,67 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) -> bool {
                                 )
                                 .fill(ACCENT_SEARCH)
                                 .min_size(egui::vec2(120.0, 32.0));
-                                if ui.add(search_button).clicked() {
+                                if ui
+                                    .add(search_button)
+                                    .on_hover_text(
+                                        "Fetch results from YouTube with current filters",
+                                    )
+                                    .clicked()
+                                {
                                     search_requested = true;
                                 }
                             });
                         });
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
-                            let old_run_any_mode = state.run_any_mode;
-                            if tinted_toggle_button(ui, state.run_any_mode, "Any", ACCENT_ANY) {
-                                state.run_any_mode = true;
+                            let desired =
+                                [(false, "Single", ACCENT_SINGLE), (true, "Any", ACCENT_ANY)];
+                            let previous = state.run_any_mode;
+                            for (idx, (is_any, label, color)) in desired.iter().enumerate() {
+                                let active = state.run_any_mode == *is_any;
+                                let fill = if active {
+                                    *color
+                                } else {
+                                    color.linear_multiply(0.25)
+                                };
+                                let text_color = if active { Color32::WHITE } else { *color };
+                                let response = ui
+                                    .add_sized(
+                                        egui::vec2(88.0, 28.0),
+                                        egui::Button::new(RichText::new(*label).color(text_color))
+                                            .fill(fill)
+                                            .corner_radius(6.0),
+                                    )
+                                    .on_hover_text(match is_any {
+                                        true => "Run every enabled preset",
+                                        false => "Run only the selected preset",
+                                    });
+                                if response.clicked() {
+                                    state.run_any_mode = *is_any;
+                                }
+                                if idx == 0 {
+                                    ui.add_space(4.0);
+                                }
                             }
-                            ui.add_space(6.0);
-                            if tinted_toggle_button(
-                                ui,
-                                !state.run_any_mode,
-                                "Single",
-                                ACCENT_SINGLE,
-                            ) {
-                                state.run_any_mode = false;
-                            }
-                            if old_run_any_mode != state.run_any_mode {
+                            if previous != state.run_any_mode {
                                 state.refresh_visible_results();
                             }
-                            if !state.run_any_mode {
-                                if let Some(name) = state.selected_search_name() {
-                                    ui.add_space(10.0);
-                                    ui.label(format!("Selected: {}", name));
-                                }
+                            if state.run_any_mode {
+                                let enabled = state
+                                    .prefs
+                                    .searches
+                                    .iter()
+                                    .filter(|preset| preset.enabled)
+                                    .count();
+                                ui.add_space(8.0);
+                                ui.label(format!(
+                                    "{} preset{} enabled",
+                                    enabled,
+                                    if enabled == 1 { "" } else { "s" }
+                                ));
+                            } else if let Some(name) = state.selected_search_name() {
+                                ui.add_space(8.0);
+                                ui.label(format!("Single: {}", name));
                             }
                             ui.add_space(12.0);
                             egui::ComboBox::from_label("Date window")

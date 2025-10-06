@@ -36,6 +36,7 @@ pub fn apply_gfv_theme(ctx: &egui::Context) {
     style.spacing.button_padding = egui::vec2(14.0, 8.0);
     style.spacing.menu_margin = Margin::same(8);
     style.spacing.window_margin = Margin::same(16);
+    style.interaction.tooltip_delay = 0.15;
     style.text_styles.insert(
         TextStyle::Heading,
         FontId::new(22.0, FontFamily::Proportional),

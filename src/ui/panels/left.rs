@@ -35,7 +35,11 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                 )
                                 .fill(ACCENT_EXTRA)
                                 .min_size(egui::vec2(120.0, 28.0));
-                                if ui.add(new_button).clicked() {
+                                if ui
+                                    .add(new_button)
+                                    .on_hover_text("Create a blank preset")
+                                    .clicked()
+                                {
                                     state.open_new_preset();
                                 }
 
@@ -44,7 +48,11 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                 )
                                 .fill(ACCENT_SAVE)
                                 .min_size(egui::vec2(120.0, 28.0));
-                                if ui.add(import_button).clicked() {
+                                if ui
+                                    .add(import_button)
+                                    .on_hover_text("Import presets from file")
+                                    .clicked()
+                                {
                                     state.open_import_dialog();
                                 }
 
@@ -55,10 +63,28 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                 )
                                 .fill(ACCENT_OPEN)
                                 .min_size(egui::vec2(120.0, 28.0));
-                                if ui.add(export_button).clicked() {
+                                if ui
+                                    .add(export_button)
+                                    .on_hover_text("Save presets to file")
+                                    .clicked()
+                                {
                                     state.open_export_dialog();
                                 }
                             });
+                            scroll_ui.add_space(8.0);
+                            let reset_button = egui::Button::new(
+                                RichText::new("Reset defaults")
+                                    .strong()
+                                    .color(Color32::WHITE),
+                            )
+                            .fill(Color32::from_rgb(200, 60, 60))
+                            .min_size(egui::vec2(140.0, 28.0));
+                            let reset_response = scroll_ui.add(reset_button).on_hover_text(
+                                "Restore built-in presets, clear blocks, and reset filters",
+                            );
+                            if reset_response.clicked() {
+                                state.reset_to_defaults();
+                            }
                             scroll_ui.add_space(8.0);
                             scroll_ui.label("Presets (enable/disable):");
 
@@ -83,15 +109,27 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                             select_id = Some(search.id.clone());
                                         }
                                         ui.menu_button("⋮", |menu_ui| {
-                                            if menu_ui.button("Edit").clicked() {
+                                            if menu_ui
+                                                .button("Edit")
+                                                .on_hover_text("Edit this preset")
+                                                .clicked()
+                                            {
                                                 row_action = Some(PresetAction::Edit(index));
                                                 menu_ui.close_menu();
                                             }
-                                            if menu_ui.button("Duplicate").clicked() {
+                                            if menu_ui
+                                                .button("Duplicate")
+                                                .on_hover_text("Copy this preset")
+                                                .clicked()
+                                            {
                                                 row_action = Some(PresetAction::Duplicate(index));
                                                 menu_ui.close_menu();
                                             }
-                                            if menu_ui.button("Delete").clicked() {
+                                            if menu_ui
+                                                .button("Delete")
+                                                .on_hover_text("Remove this preset")
+                                                .clicked()
+                                            {
                                                 row_action = Some(PresetAction::Delete(index));
                                                 menu_ui.close_menu();
                                             }
@@ -118,7 +156,11 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                             )
                             .fill(ACCENT_SAVE)
                             .min_size(egui::vec2(120.0, 28.0));
-                            if scroll_ui.add(save_button).clicked() {
+                            if scroll_ui
+                                .add(save_button)
+                                .on_hover_text("Persist presets to disk")
+                                .clicked()
+                            {
                                 state.normalize_duration_selection();
                                 if let Err(e) = prefs::save(&state.prefs) {
                                     state.status = format!("Save error: {e}");
@@ -141,7 +183,11 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                                     }
                                     scroll_ui.horizontal(|ui| {
                                         ui.label(label);
-                                        if ui.button("Unblock").clicked() {
+                                        if ui
+                                            .button("Unblock")
+                                            .on_hover_text("Allow videos from this channel again")
+                                            .clicked()
+                                        {
                                             state.unblock_channel(&key);
                                         }
                                     });

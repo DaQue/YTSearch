@@ -30,11 +30,15 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
             if state.result_sort != previous_sort {
                 state.apply_result_sort();
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(format!("Downloaded: {}", state.results_all.len()));
+            });
         });
         if state.is_searching {
             ui.label("Searching...");
         } else if state.results.is_empty() {
             ui.label("No results yet. Enter your API key and click Search.");
+            ui.label(format!("Visible after filters: {}", state.results.len()));
         } else {
             let mut block_requests: Vec<(String, String)> = Vec::new();
             let results_snapshot = state.results.clone();
@@ -42,6 +46,7 @@ pub(super) fn render(state: &mut AppState, ctx: &Context) {
                 .into_iter()
                 .filter(|video| state.duration_filter.allows(video.duration_secs))
                 .collect();
+            ui.label(format!("Visible after filters: {}", filtered_results.len()));
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for video in &filtered_results {
                     render_video_card(state, ui, video, &mut block_requests);
@@ -96,7 +101,11 @@ fn render_video_card(
                             )
                             .fill(ACCENT_EXTRA)
                             .min_size(egui::vec2(140.0, 24.0));
-                            if ui.add(block_button).clicked() {
+                            if ui
+                                .add(block_button)
+                                .on_hover_text("Hide this channel in future results")
+                                .clicked()
+                            {
                                 block_requests.push((
                                     video.channel_handle.trim().to_owned(),
                                     channel_label.clone(),
@@ -193,7 +202,9 @@ fn render_open_button(state: &mut AppState, ui: &mut egui::Ui, video: &VideoDeta
     let open_button = egui::Button::new(RichText::new("Open").strong().color(Color32::WHITE))
         .fill(ACCENT_OPEN)
         .min_size(egui::vec2(90.0, 26.0));
-    let response = ui.add_sized(egui::vec2(MAX_THUMB_WIDTH, 30.0), open_button);
+    let response = ui
+        .add_sized(egui::vec2(MAX_THUMB_WIDTH, 30.0), open_button)
+        .on_hover_text("Open video in your browser");
     if response.clicked() {
         match open_in_browser(&video.url) {
             Ok(()) => {

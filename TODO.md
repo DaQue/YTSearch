@@ -17,11 +17,10 @@
 - Env override to cap pages per run: `YTSEARCH_MAX_SEARCH_PAGES` (default 2).
 
 ## Outstanding / Follow-up Ideas
-- Provide Reset-to-defaults button (restore defaults, clear block list).
-- Improve Single vs Any affordance further (maybe icon/toggle badge).
-- Provide channel-unblock confirmation / history.
-- Explore saved block list separate from prefs.json (e.g., dedicated file).
-- Make duration buckets (labels + ranges) editable from UI.
+1. Show results counter as “passed/downloaded” (e.g., `47/200`) in the results header.
+2. Provide channel-unblock confirmation / history.
+3. Explore saved block list separate from prefs.json (e.g., dedicated file).
+4. Make duration buckets (labels + ranges) editable from UI.
 
 ## Current Status: 🚧 FUNCTIONAL BUT INCOMPLETE
 
